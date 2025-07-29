@@ -1,50 +1,379 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import styled from 'styled-components';
+import apiRequest from "./apiRequest";
 
-// Global Styles
-const GlobalStyles = {
-  container: "min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6",
-  card: "bg-white rounded-xl shadow-lg border border-slate-200 p-6 mb-6",
-  cardHeader: "text-xl font-semibold text-slate-800 mb-6 pb-3 border-b border-slate-200",
-  formGrid: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4",
-  formGroup: "flex flex-col space-y-2",
-  label: "text-sm font-medium text-slate-700",
-  required: "text-red-500",
-  input: "px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200",
-  select: "px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white",
-  button: {
-    primary: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 font-medium",
-    secondary: "px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all duration-200 font-medium",
-    success: "px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200 font-medium",
-    danger: "px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200",
-    warning: "px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all duration-200"
-  },
-  table: "w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm",
-  tableHeader: "bg-slate-100 text-slate-700 font-semibold text-sm",
-  tableCell: "px-3 py-2 border-b border-slate-200 text-sm",
-  modal: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4",
-  modalContent: "bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto",
-  modalHeader: "px-6 py-4 border-b border-slate-200 flex justify-between items-center",
-  modalBody: "px-6 py-4",
-  modalFooter: "px-6 py-4 border-t border-slate-200 flex justify-end space-x-3"
-};
+// Styled Components with Custom Gradient
+const Container = styled.div`
+  min-height: 100vh;
+  background: linear-gradient(135deg, #4ED7F1 0%, #6FE6FC 25%, #A8F1FF 75%, #FFFA8D 100%);
+  padding: 24px;
+`;
+
+const MaxWidthContainer = styled.div`
+  max-width: 1280px;
+  margin: 0 auto;
+`;
+
+const Title = styled.h1`
+  font-size: 2rem;
+  font-weight: bold;
+  background: linear-gradient(135deg, #4ED7F1, #6FE6FC);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 32px;
+`;
+
+const Card = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(78, 215, 241, 0.2), 0 4px 6px -2px rgba(111, 230, 252, 0.15);
+  border: 1px solid rgba(168, 241, 255, 0.3);
+  padding: 24px;
+  margin-bottom: 24px;
+`;
+
+const CardHeader = styled.h2`
+  font-size: 1.25rem;
+  font-weight: 600;
+  background: linear-gradient(90deg, #4ED7F1, #6FE6FC);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(168, 241, 255, 0.4);
+`;
+
+const FormGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const Label = styled.label`
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+`;
+
+const Required = styled.span`
+  color: #ef4444;
+`;
+
+const Input = styled.input`
+  padding: 8px 12px;
+  border: 1px solid rgba(168, 241, 255, 0.5);
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s;
+  background: rgba(255, 255, 255, 0.8);
+  
+  &:focus {
+    outline: 2px solid #4ED7F1;
+    outline-offset: 2px;
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 3px rgba(78, 215, 241, 0.1);
+  }
+`;
+
+const Select = styled.select`
+  padding: 8px 12px;
+  border: 1px solid rgba(168, 241, 255, 0.5);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+  transition: all 0.2s;
+  
+  &:focus {
+    outline: 2px solid #4ED7F1;
+    outline-offset: 2px;
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 3px rgba(78, 215, 241, 0.1);
+  }
+`;
+
+const TextArea = styled.textarea`
+  padding: 8px 12px;
+  border: 1px solid rgba(168, 241, 255, 0.5);
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s;
+  min-height: 80px;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.8);
+  
+  &:focus {
+    outline: 2px solid #4ED7F1;
+    outline-offset: 2px;
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 3px rgba(78, 215, 241, 0.1);
+  }
+`;
+
+const Button = styled.button`
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+`;
+
+const PrimaryButton = styled(Button)`
+  background: linear-gradient(135deg, #4ED7F1, #6FE6FC);
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(78, 215, 241, 0.3);
+  
+  &:hover {
+    background: linear-gradient(135deg, #6FE6FC, #4ED7F1);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px -2px rgba(78, 215, 241, 0.4);
+  }
+`;
+
+const SecondaryButton = styled(Button)`
+  background: linear-gradient(135deg, #A8F1FF, #6FE6FC);
+  color: #374151;
+  box-shadow: 0 4px 6px -1px rgba(168, 241, 255, 0.3);
+  
+  &:hover {
+    background: linear-gradient(135deg, #6FE6FC, #A8F1FF);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px -2px rgba(168, 241, 255, 0.4);
+  }
+`;
+
+const SuccessButton = styled(Button)`
+  background: linear-gradient(135deg, #FFFA8D, #A8F1FF);
+  color: #374151;
+  box-shadow: 0 4px 6px -1px rgba(255, 250, 141, 0.3);
+  
+  &:hover {
+    background: linear-gradient(135deg, #A8F1FF, #FFFA8D);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px -2px rgba(255, 250, 141, 0.4);
+  }
+`;
+
+const DangerButton = styled(Button)`
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  
+  &:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    transform: translateY(-1px);
+  }
+`;
+
+const WarningButton = styled(Button)`
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #FFFA8D, #f59e0b);
+  color: #374151;
+  
+  &:hover {
+    background: linear-gradient(135deg, #f59e0b, #FFFA8D);
+    transform: translateY(-1px);
+  }
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 15px -3px rgba(78, 215, 241, 0.2), 0 4px 6px -2px rgba(111, 230, 252, 0.15);
+`;
+
+const TableHeader = styled.thead`
+  background: linear-gradient(135deg, #A8F1FF, #6FE6FC);
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.875rem;
+`;
+
+const TableCell = styled.td`
+  padding: 12px;
+  border-bottom: 1px solid rgba(168, 241, 255, 0.3);
+  font-size: 0.875rem;
+`;
+
+const TableHeaderCell = styled.th`
+  padding: 12px;
+  border-bottom: 1px solid rgba(168, 241, 255, 0.4);
+  font-size: 0.875rem;
+  text-align: left;
+`;
+
+const TableRow = styled.tr`
+  &:hover {
+    background: rgba(168, 241, 255, 0.1);
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background: white;
+  width: 1200px;
+  height: 100vh;
+  overflow-y: auto;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+`;
+
+const ModalHeader = styled.div`
+  padding: 24px;
+  border-bottom: 1px solid rgba(168, 241, 255, 0.3);
+  background: linear-gradient(135deg, rgba(168, 241, 255, 0.1), rgba(255, 250, 141, 0.1));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const ModalBody = styled.div`
+  padding: 24px;
+`;
+
+const ModalFooter = styled.div`
+  padding: 24px;
+  border-top: 1px solid rgba(168, 241, 255, 0.3);
+  background: linear-gradient(135deg, rgba(168, 241, 255, 0.05), rgba(255, 250, 141, 0.05));
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+`;
+
+const HeaderSection = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+`;
+
+const ActionSection = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-bottom: 32px;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const EmptyState = styled.td`
+  text-align: center;
+  color: #6b7280;
+  padding: 32px;
+`;
+
+const TableContainer = styled.div`
+  overflow-x: auto;
+`;
+
+const SmallModalContent = styled.div`
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(78, 215, 241, 0.3);
+  border: 1px solid rgba(168, 241, 255, 0.3);
+  max-width: 448px;
+  width: 100%;
+  margin: 16px;
+`;
+
+const CloseButton = styled.button`
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    color: #4ED7F1;
+    transform: scale(1.1);
+  }
+`;
+
+const SummaryGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media (min-width: 1280px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+`;
+
 
 const TravellersIN = () => {
   // Form state for main form
-  const [formData, setFormData] = useState({
-    purchaseCategory: 'TRAVELLERS IN',
-    vendor: 'A CARE MEDICO',
-    date: '07/26/2025',
-    supplierAddress: 'NO.12,NORTH KIR',
-    contactPerson: '',
-    phone: '',
-    invoiceNo: '001',
-    invoiceDate: '07/26/2025',
-    creditPeriod: '',
-    dueDate: '07/26/2025',
-    reference: 'New',
-    paymentMode: 'CHEQUE'
-  });
+const [formData, setFormData] = useState({
+  purchaseCategory: '',
+  vendor: '',
+  date: new Date().toISOString().split('T')[0], // Current date
+  supplierAddress: '',
+  contactPerson: '',
+  phone: '',
+  invoiceNo: '',
+  invoiceDate: '',
+  creditPeriod: '',
+  dueDate: '',
+  reference: '',
+  paymentMode: ''
+});
 
   // Items state
   const [items, setItems] = useState([]);
@@ -90,6 +419,8 @@ const TravellersIN = () => {
     quotationRate: 0.00,
     courierTransportCharge: 0.00
   });
+
+  const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -153,11 +484,97 @@ const TravellersIN = () => {
     setItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const handleSave = () => {
-    console.log('Saving data:', { formData, items, summary });
-    alert('Data saved successfully!');
-  };
+const handleSubmit = async () => {
+  try {
+    // Validate required fields before submission
+    const requiredFields = {     
+      invoiceNo: 'Invoice Number',
+      purchaseCategory: 'Purchase Category'
+    };
 
+    const missingFields = [];
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (!formData[field] || formData[field].trim() === '') {
+        missingFields.push(label);
+      }
+    }
+
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    // Format dates to YYYY-MM-DD if they exist
+    const formatDate = (dateString) => {
+      if (!dateString) return '';
+      
+      // If it's already in YYYY-MM-DD format, return as is
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString;
+      }
+      
+      // Try to parse and format the date
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '';
+        return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      } catch (error) {
+        console.warn('Date formatting error:', error);
+        return '';
+      }
+    };
+
+    const submitData = {
+      ...formData,
+      // Ensure dates are in correct format
+      invoiceDate: formatDate(formData.invoiceDate),
+      dueDate: formatDate(formData.dueDate),
+      date: formatDate(formData.date || new Date().toISOString().split('T')[0]),
+      
+      // Ensure required fields are not empty strings
+      vendor: formData.vendor?.trim() || null,
+      invoiceNo: formData.invoiceNo?.trim() || null,
+      purchaseCategory: formData.purchaseCategory?.trim() || null,
+      
+      items: items || [],
+      summary: summary || {},
+      created_date: new Date().toISOString(),
+      lastmodified_date: new Date().toISOString()
+    };
+
+    console.log('Submitting data:', submitData); // Debug log
+
+    const response = await fetch(`${StoreTrustbaseurl}travellers-in/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submitData)
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      alert('Data submitted successfully!');
+      // Reset form after successful submission
+      confirmCancel();
+    } else {
+      // Show detailed error messages
+      if (result.errors) {
+        const errorMessages = [];
+        for (const [field, messages] of Object.entries(result.errors)) {
+          errorMessages.push(`${field}: ${messages.join(', ')}`);
+        }
+        alert(`Validation errors:\n${errorMessages.join('\n')}`);
+      } else {
+        alert(`Error: ${result.message || 'Unknown error occurred'}`);
+      }
+    }
+  } catch (error) {
+    console.error('Submit error:', error);
+    alert('Network error. Please check your connection and try again.');
+  }
+};
   const handleCancel = () => {
     setShowConfirmDialog(true);
   };
@@ -165,18 +582,18 @@ const TravellersIN = () => {
   const confirmCancel = () => {
     // Reset all forms
     setFormData({
-      purchaseCategory: 'TRAVELLERS IN',
-      vendor: 'A CARE MEDICO',
-      date: '07/26/2025',
-      supplierAddress: 'NO.12,NORTH KIR',
+      purchaseCategory: '',
+      vendor: '',
+      date: '',
+      supplierAddress: '',
       contactPerson: '',
       phone: '',
-      invoiceNo: '001',
-      invoiceDate: '07/26/2025',
+      invoiceNo: '',
+      invoiceDate: '',
       creditPeriod: '',
-      dueDate: '07/26/2025',
-      reference: 'New',
-      paymentMode: 'CHEQUE'
+      dueDate: '',
+      reference: '',
+      paymentMode: ''
     });
     setItems([]);
     setSummary({
@@ -202,541 +619,484 @@ const TravellersIN = () => {
   };
 
   return (
-    <div className={GlobalStyles.container}>
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-slate-800 mb-8">Travellers IN</h1>
+    <Container>
+      <MaxWidthContainer>
+        <Title>Travellers IN</Title>
         
         {/* Container 1: Basic Information */}
-        <div className={GlobalStyles.card}>
-          <h2 className={GlobalStyles.cardHeader}>Basic Information</h2>
-          <div className={GlobalStyles.formGrid}>
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>
-                Purchase Category <span className={GlobalStyles.required}>*</span>
-              </label>
-              <select
-                name="purchaseCategory"
-                value={formData.purchaseCategory}
-                onChange={handleInputChange}
-                className={GlobalStyles.select}
-              >
-                <option value="TRAVELLERS IN">TRAVELLERS IN</option>
-              </select>
-            </div>
+        <Card>
+          <CardHeader>Basic Information</CardHeader>
+          <FormGrid>
+            <FormGroup>
+  <Label>
+    Purchase Category <Required>*</Required>
+  </Label>
+  <Select
+    name="purchaseCategory"
+    value={formData.purchaseCategory}
+    onChange={handleInputChange}
+  >
+    <option value="">Select Category</option>
+    <option value="TRAVELLERS IN CREDIT">TRAVELLERS IN CREDIT</option>
+    <option value="TRAVELLERS IN CASH">TRAVELLERS IN CASH</option>
+  </Select>
+</FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>
-                Vendor <span className={GlobalStyles.required}>*</span>
-              </label>
-              <select
+            <FormGroup>
+              <Label>
+                Vendor <Required>*</Required>
+              </Label>
+              <Select
                 name="vendor"
                 value={formData.vendor}
                 onChange={handleInputChange}
-                className={GlobalStyles.select}
               >
                 <option value="A CARE MEDICO">A CARE MEDICO</option>
-              </select>
-            </div>
+              </Select>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Date</label>
-              <input
+            <FormGroup>
+              <Label>Date</Label>
+              <Input
                 type="date"
                 name="date"
                 value={formData.date}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Supplier Address</label>
-              <input
+            <FormGroup>
+              <Label>Supplier Address</Label>
+              <Input
                 type="text"
                 name="supplierAddress"
                 value={formData.supplierAddress}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Contact Person</label>
-              <input
+            <FormGroup>
+              <Label>Contact Person</Label>
+              <Input
                 type="text"
                 name="contactPerson"
                 value={formData.contactPerson}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Phone</label>
-              <input
+            <FormGroup>
+              <Label>Phone</Label>
+              <Input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>
-                Invoice No <span className={GlobalStyles.required}>*</span>
-              </label>
-              <input
+            <FormGroup>
+              <Label>
+                Invoice No <Required>*</Required>
+              </Label>
+              <Input
                 type="text"
                 name="invoiceNo"
                 value={formData.invoiceNo}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>
-                Invoice Date <span className={GlobalStyles.required}>*</span>
-              </label>
-              <input
+            <FormGroup>
+              <Label>
+                Invoice Date <Required>*</Required>
+              </Label>
+              <Input
                 type="date"
                 name="invoiceDate"
                 value={formData.invoiceDate}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Credit Period</label>
-              <input
+            <FormGroup>
+              <Label>Credit Period</Label>
+              <Input
                 type="text"
                 name="creditPeriod"
                 value={formData.creditPeriod}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Due Date</label>
-              <input
+            <FormGroup>
+              <Label>Due Date</Label>
+              <Input
                 type="date"
                 name="dueDate"
                 value={formData.dueDate}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Reference</label>
-              <input
+            <FormGroup>
+              <Label>Reference</Label>
+              <Input
                 type="text"
                 name="reference"
                 value={formData.reference}
                 onChange={handleInputChange}
-                className={GlobalStyles.input}
               />
-            </div>
+            </FormGroup>
 
-            <div className={GlobalStyles.formGroup}>
-              <label className={GlobalStyles.label}>Payment Mode</label>
-              <select
+            <FormGroup>
+              <Label>Payment Mode</Label>
+              <Select
                 name="paymentMode"
                 value={formData.paymentMode}
                 onChange={handleInputChange}
-                className={GlobalStyles.select}
               >
                 <option value="CHEQUE">CHEQUE</option>
                 <option value="CASH">CASH</option>
                 <option value="CARD">CARD</option>
                 <option value="UPI">UPI</option>
-              </select>
-            </div>
-          </div>
-        </div>
+              </Select>
+            </FormGroup>
+          </FormGrid>
+        </Card>
 
         {/* Container 2: Items Table */}
-        <div className={GlobalStyles.card}>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-slate-800">Items</h2>
-            <button
-              onClick={() => openModal()}
-              className={`${GlobalStyles.button.primary} flex items-center space-x-2`}
-            >
-              <Plus className="w-4 h-4" />
+        <Card>
+          <HeaderSection>
+            <CardHeader style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>Items</CardHeader>
+            <PrimaryButton onClick={() => openModal()}>
+              <Plus size={16} />
               <span>Add Item</span>
-            </button>
-          </div>
+            </PrimaryButton>
+          </HeaderSection>
 
-          <div className="overflow-x-auto">
-            <table className={GlobalStyles.table}>
-              <thead>
-                <tr className={GlobalStyles.tableHeader}>
-                  <th className={GlobalStyles.tableCell}>Sl.No</th>
-                  <th className={GlobalStyles.tableCell}>Name</th>
-                  <th className={GlobalStyles.tableCell}>Batch</th>
-                  <th className={GlobalStyles.tableCell}>Packing</th>
-                  <th className={GlobalStyles.tableCell}>Quantity</th>
-                  <th className={GlobalStyles.tableCell}>Free</th>
-                  <th className={GlobalStyles.tableCell}>Expiry</th>
-                  <th className={GlobalStyles.tableCell}>S.Rate</th>
-                  <th className={GlobalStyles.tableCell}>CGST%</th>
-                  <th className={GlobalStyles.tableCell}>CGST Amt</th>
-                  <th className={GlobalStyles.tableCell}>SGST%</th>
-                  <th className={GlobalStyles.tableCell}>SGST Amt</th>
-                  <th className={GlobalStyles.tableCell}>IGST%</th>
-                  <th className={GlobalStyles.tableCell}>IGST Amt</th>
-                  <th className={GlobalStyles.tableCell}>P.Cost</th>
-                  <th className={GlobalStyles.tableCell}>Value</th>
-                  <th className={GlobalStyles.tableCell}>Actions</th>
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <tr>
+                  <TableHeaderCell>Sl.No</TableHeaderCell>
+                  <TableHeaderCell>Name</TableHeaderCell>
+                  <TableHeaderCell>Batch</TableHeaderCell>
+                  <TableHeaderCell>Packing</TableHeaderCell>
+                  <TableHeaderCell>Quantity</TableHeaderCell>
+                  <TableHeaderCell>Free</TableHeaderCell>
+                  <TableHeaderCell>Expiry</TableHeaderCell>
+                  <TableHeaderCell>S.Rate</TableHeaderCell>
+                  <TableHeaderCell>CGST%</TableHeaderCell>
+                  <TableHeaderCell>CGST Amt</TableHeaderCell>
+                  <TableHeaderCell>SGST%</TableHeaderCell>
+                  <TableHeaderCell>SGST Amt</TableHeaderCell>
+                  <TableHeaderCell>IGST%</TableHeaderCell>
+                  <TableHeaderCell>IGST Amt</TableHeaderCell>
+                  <TableHeaderCell>P.Cost</TableHeaderCell>
+                  <TableHeaderCell>Value</TableHeaderCell>
+                  <TableHeaderCell>Actions</TableHeaderCell>
                 </tr>
-              </thead>
+              </TableHeader>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan="17" className={`${GlobalStyles.tableCell} text-center text-slate-500 py-8`}>
+                    <EmptyState colSpan="17">
                       No items added yet. Click "Add Item" to get started.
-                    </td>
+                    </EmptyState>
                   </tr>
                 ) : (
                   items.map((item, index) => (
-                    <tr key={item.id} className="hover:bg-slate-50">
-                      <td className={GlobalStyles.tableCell}>{index + 1}</td>
-                      <td className={GlobalStyles.tableCell}>{item.name}</td>
-                      <td className={GlobalStyles.tableCell}>{item.batch}</td>
-                      <td className={GlobalStyles.tableCell}>{item.packing}</td>
-                      <td className={GlobalStyles.tableCell}>{item.quantity}</td>
-                      <td className={GlobalStyles.tableCell}>{item.free}</td>
-                      <td className={GlobalStyles.tableCell}>{item.expiry}</td>
-                      <td className={GlobalStyles.tableCell}>{item.sRate}</td>
-                      <td className={GlobalStyles.tableCell}>{item.cgstPercent}</td>
-                      <td className={GlobalStyles.tableCell}>{item.cgstAmt}</td>
-                      <td className={GlobalStyles.tableCell}>{item.sgstPercent}</td>
-                      <td className={GlobalStyles.tableCell}>{item.sgstAmt}</td>
-                      <td className={GlobalStyles.tableCell}>{item.igstPercent}</td>
-                      <td className={GlobalStyles.tableCell}>{item.igstAmt}</td>
-                      <td className={GlobalStyles.tableCell}>{item.pCost}</td>
-                      <td className={GlobalStyles.tableCell}>{item.value}</td>
-                      <td className={GlobalStyles.tableCell}>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => openModal(item)}
-                            className={GlobalStyles.button.warning}
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className={GlobalStyles.button.danger}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableRow key={item.id}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.batch}</TableCell>
+                      <TableCell>{item.packing}</TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell>{item.free}</TableCell>
+                      <TableCell>{item.expiry}</TableCell>
+                      <TableCell>{item.sRate}</TableCell>
+                      <TableCell>{item.cgstPercent}</TableCell>
+                      <TableCell>{item.cgstAmt}</TableCell>
+                      <TableCell>{item.sgstPercent}</TableCell>
+                      <TableCell>{item.sgstAmt}</TableCell>
+                      <TableCell>{item.igstPercent}</TableCell>
+                      <TableCell>{item.igstAmt}</TableCell>
+                      <TableCell>{item.pCost}</TableCell>
+                      <TableCell>{item.value}</TableCell>
+                      <TableCell>
+                        <ActionButtons>
+                          <WarningButton onClick={() => openModal(item)}>
+                            <Edit2 size={12} />
+                          </WarningButton>
+                          <DangerButton onClick={() => handleDeleteItem(item.id)}>
+                            <Trash2 size={12} />
+                          </DangerButton>
+                        </ActionButtons>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
               </tbody>
-            </table>
-          </div>
-        </div>
+            </Table>
+          </TableContainer>
+        </Card>
 
         {/* Container 3: Summary */}
-        <div className={GlobalStyles.card}>
-          <h2 className={GlobalStyles.cardHeader}>Summary</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader>Summary</CardHeader>
+          <SummaryGrid>
             {Object.keys(summary).map((key) => (
-              <div key={key} className={GlobalStyles.formGroup}>
-                <label className={GlobalStyles.label}>
+              <FormGroup key={key}>
+                <Label>
                   {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                </label>
+                </Label>
                 {key === 'remarks' ? (
-                  <textarea
+                  <TextArea
                     name={key}
                     value={summary[key]}
                     onChange={(e) => handleInputChange(e, 'summary')}
-                    className={`${GlobalStyles.input} min-h-[80px]`}
                     rows="3"
                   />
                 ) : (
-                  <input
+                  <Input
                     type="number"
                     step="0.01"
                     name={key}
                     value={summary[key]}
                     onChange={(e) => handleInputChange(e, 'summary')}
-                    className={GlobalStyles.input}
                   />
                 )}
-              </div>
+              </FormGroup>
             ))}
-          </div>
-        </div>
+          </SummaryGrid>
+        </Card>
 
         {/* Action Buttons */}
-        <div className="flex justify-end space-x-4 mb-8">
-          <button
-            onClick={handleCancel}
-            className={GlobalStyles.button.secondary}
-          >
+        <ActionSection>
+          <SecondaryButton onClick={handleCancel}>
             Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className={GlobalStyles.button.success}
-          >
-            Save GRN
-          </button>
-        </div>
-      </div>
+          </SecondaryButton>
+          <SuccessButton onClick={handleSubmit}>
+  Submit GRN
+</SuccessButton>
+        </ActionSection>
+      </MaxWidthContainer>
 
       {/* Modal */}
       {showModal && (
-        <div className={GlobalStyles.modal}>
-          <div className={GlobalStyles.modalContent}>
-            <div className={GlobalStyles.modalHeader}>
-              <h3 className="text-lg font-semibold text-slate-800">
+        <Modal>
+          <ModalContent>
+            <ModalHeader>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>
                 {editingItem ? 'Edit Item' : 'Add New Item'}
               </h3>
-              <button
-                onClick={closeModal}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+              <CloseButton onClick={closeModal}>
+                <X size={20} />
+              </CloseButton>
+            </ModalHeader>
             
-            <div className={GlobalStyles.modalBody}>
-              <div className={GlobalStyles.formGrid}>
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Name</label>
-                  <input
+            <ModalBody>
+              <FormGrid>
+                <FormGroup>
+                  <Label>Name</Label>
+                  <Input
                     type="text"
                     name="name"
                     value={modalForm.name}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Batch</label>
-                  <input
+                <FormGroup>
+                  <Label>Batch</Label>
+                  <Input
                     type="text"
                     name="batch"
                     value={modalForm.batch}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Packing</label>
-                  <input
+                <FormGroup>
+                  <Label>Packing</Label>
+                  <Input
                     type="text"
                     name="packing"
                     value={modalForm.packing}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Quantity</label>
-                  <input
+                <FormGroup>
+                  <Label>Quantity</Label>
+                  <Input
                     type="number"
                     name="quantity"
                     value={modalForm.quantity}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Free</label>
-                  <input
+                <FormGroup>
+                  <Label>Free</Label>
+                  <Input
                     type="number"
                     name="free"
                     value={modalForm.free}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Expiry</label>
-                  <input
+                <FormGroup>
+                  <Label>Expiry</Label>
+                  <Input
                     type="date"
                     name="expiry"
                     value={modalForm.expiry}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>S.Rate</label>
-                  <input
+                <FormGroup>
+                  <Label>S.Rate</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="sRate"
                     value={modalForm.sRate}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>CGST%</label>
-                  <input
+                <FormGroup>
+                  <Label>CGST%</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="cgstPercent"
                     value={modalForm.cgstPercent}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>CGST Amt</label>
-                  <input
+                <FormGroup>
+                  <Label>CGST Amt</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="cgstAmt"
                     value={modalForm.cgstAmt}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>SGST%</label>
-                  <input
+                <FormGroup>
+                  <Label>SGST%</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="sgstPercent"
                     value={modalForm.sgstPercent}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>SGST Amt</label>
-                  <input
+                <FormGroup>
+                  <Label>SGST Amt</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="sgstAmt"
                     value={modalForm.sgstAmt}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>IGST%</label>
-                  <input
+                <FormGroup>
+                  <Label>IGST%</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="igstPercent"
                     value={modalForm.igstPercent}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>IGST Amt</label>
-                  <input
+                <FormGroup>
+                  <Label>IGST Amt</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="igstAmt"
                     value={modalForm.igstAmt}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>P.Cost</label>
-                  <input
+                <FormGroup>
+                  <Label>P.Cost</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="pCost"
                     value={modalForm.pCost}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
+                </FormGroup>
 
-                <div className={GlobalStyles.formGroup}>
-                  <label className={GlobalStyles.label}>Value</label>
-                  <input
+                <FormGroup>
+                  <Label>Value</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     name="value"
                     value={modalForm.value}
                     onChange={(e) => handleInputChange(e, 'modal')}
-                    className={GlobalStyles.input}
                   />
-                </div>
-              </div>
-            </div>
+                </FormGroup>
+              </FormGrid>
+            </ModalBody>
 
-            <div className={GlobalStyles.modalFooter}>
-              <button
-                onClick={closeModal}
-                className={GlobalStyles.button.secondary}
-              >
+            <ModalFooter>
+              <SecondaryButton onClick={closeModal}>
                 Cancel
-              </button>
-              <button
-                onClick={handleAddItem}
-                className={GlobalStyles.button.primary}
-              >
+              </SecondaryButton>
+              <PrimaryButton onClick={handleAddItem}>
                 {editingItem ? 'Update Item' : 'Add Item'}
-              </button>
-            </div>
-          </div>
-        </div>
+              </PrimaryButton>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       )}
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (
-        <div className={GlobalStyles.modal}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
-            <div className={GlobalStyles.modalHeader}>
-              <h3 className="text-lg font-semibold text-slate-800">Confirm Cancel</h3>
-            </div>
+        <Modal>
+          <SmallModalContent>
+            <ModalHeader>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Confirm Cancel</h3>
+            </ModalHeader>
             
-            <div className={GlobalStyles.modalBody}>
-              <p className="text-slate-600">
+            <ModalBody>
+              <p style={{ color: '#4b5563', margin: 0 }}>
                 Are you sure you want to cancel? All unsaved data will be lost.
               </p>
-            </div>
+            </ModalBody>
 
-            <div className={GlobalStyles.modalFooter}>
-              <button
-                onClick={() => setShowConfirmDialog(false)}
-                className={GlobalStyles.button.secondary}
-              >
+            <ModalFooter>
+              <SecondaryButton onClick={() => setShowConfirmDialog(false)}>
                 Keep Editing
-              </button>
-              <button
-                onClick={confirmCancel}
-                className={GlobalStyles.button.danger}
-              >
+              </SecondaryButton>
+              <DangerButton onClick={confirmCancel}>
                 Yes, Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+              </DangerButton>
+            </ModalFooter>
+          </SmallModalContent>
+        </Modal>
       )}
-    </div>
+    </Container>
   );
 };
 

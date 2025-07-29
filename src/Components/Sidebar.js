@@ -1,18 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import styled, { css, keyframes } from "styled-components";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   FaHome,
-  FaUserPlus,
-  FaIdCard,
-  FaFileInvoiceDollar,
-  FaMoneyBillWave,
-  FaChartBar,
-  FaCalculator,
   FaCaretDown,
-  FaClipboardList, // For Front Office - represents registration/administration
-  FaReceipt, // For Billing - represents invoices/billing
+  FaClipboardList,
 } from "react-icons/fa";
 
 // Animation keyframes
@@ -28,7 +21,7 @@ const SidebarContainer = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  background-color: #dce2cb;
+  background: linear-gradient(to bottom, #4ED7F1, #6FE6FC, #A8F1FF, #FFFA8D);
   padding: 2rem 0;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
   display: flex;
@@ -36,7 +29,7 @@ const SidebarContainer = styled.div`
   overflow-y: auto;
   z-index: 100;
   transition: all 0.3s ease;
-  /* Custom scrollbar */
+
   &::-webkit-scrollbar {
     width: 6px;
   }
@@ -56,7 +49,7 @@ const Logo = styled.div`
   h1 {
     font-family: "Baloo Tamma 2", cursive;
     font-size: 1.5rem;
-    color: #557153;
+    color: #333;
     margin: 0;
   }
 `;
@@ -74,26 +67,6 @@ const SidebarItem = styled.li`
   position: relative;
 `;
 
-const activeItemStyles = css`
-  background-color: #a1c181;
-  color: white;
-  font-weight: 600;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  svg {
-    color: white;
-  }
-  &::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 4px;
-    background-color: #557153;
-    border-radius: 0 4px 4px 0;
-  }
-`;
-
 const SidebarNavLink = styled(NavLink)`
   color: #333;
   display: flex;
@@ -105,18 +78,37 @@ const SidebarNavLink = styled(NavLink)`
   border-radius: 12px;
   transition: all 0.3s ease;
   position: relative;
+
   svg {
     margin-right: 12px;
     font-size: 1.2rem;
-    color: #557153;
-    transition: all 0.3s ease;
+    color: #007e91; /* dark aqua */
   }
+
   &:hover {
-    background-color: rgba(161, 193, 129, 0.2);
+    background-color: rgba(255, 250, 141, 0.3); /* light yellow glow */
     transform: translateX(5px);
   }
+
   &.active {
-    ${activeItemStyles}
+    background-color: #FFFA8D;
+    color: #000;
+    font-weight: 600;
+
+    svg {
+      color: #000;
+    }
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 4px;
+      background-color: #007e91;
+      border-radius: 0 4px 4px 0;
+    }
   }
 `;
 
@@ -125,23 +117,39 @@ const DropdownButton = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  text-decoration: none;
   font-size: 1rem;
   font-family: "Baloo Tamma 2", cursive;
   padding: 0.9rem 1.2rem;
   border-radius: 12px;
-  transition: all 0.3s ease;
   cursor: pointer;
+  transition: all 0.3s ease;
+
   svg:first-child {
     margin-right: 12px;
     font-size: 1.2rem;
-    color: #557153;
+    color: #007e91;
   }
+
   &:hover {
-    background-color: rgba(161, 193, 129, 0.2);
+    background-color: rgba(255, 250, 141, 0.3);
     transform: translateX(5px);
   }
-  ${(props) => props.active && activeItemStyles}
+
+  ${(props) =>
+    props.active &&
+    css`
+      background-color: #FFFA8D;
+      color: #000;
+      font-weight: 600;
+
+      svg {
+        color: #000;
+      }
+
+      &::before {
+        background-color: #007e91;
+      }
+    `}
 `;
 
 const DropdownIcon = styled.div`
@@ -167,13 +175,14 @@ const SubMenu = styled.div`
 const SubLink = styled(NavLink)`
   color: #333;
   padding: 0.7rem 1rem 0.7rem 2.5rem;
-  text-decoration: none;
   font-size: 0.95rem;
+  font-family: "Baloo Tamma 2", cursive;
+  text-decoration: none;
   display: block;
   border-radius: 8px;
-  font-family: "Baloo Tamma 2", cursive;
-  transition: all 0.3s ease;
   position: relative;
+  transition: all 0.3s ease;
+
   &::before {
     content: "";
     position: absolute;
@@ -183,268 +192,131 @@ const SubLink = styled(NavLink)`
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background-color: #557153;
+    background-color: #007e91;
     opacity: 0.7;
   }
+
   &:hover {
-    background-color: rgba(161, 193, 129, 0.2);
+    background-color: rgba(255, 250, 141, 0.3);
     transform: translateX(5px);
   }
+
   &.active {
-    background-color: #a1c181;
-    color: white;
+    background-color: #FFFA8D;
+    color: #000;
     font-weight: 600;
+
     &::before {
-      background-color: white;
+      background-color: #000;
       opacity: 1;
     }
   }
 `;
 
 const Sidebar = () => {
-  const [isReportDropdown, setIsReportDropdown] = useState(false);
-  const [isFrontOfficeDropdown, setIsFrontOfficeDropdown] = useState(false);
-  const [isBillingDropdown, setIsBillingDropdown] = useState(false);
+  const [isTravellersDropdown, setIsTravellersDropdown] = useState(false);
   const [userRole, setUserRole] = useState("");
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Get user role from localStorage on component mount
+  // Get user role from localStorage and handle initial navigation
   useEffect(() => {
-    const role = localStorage.getItem("role") || "Receptionist"; // Default to Receptionist
+    const role = localStorage.getItem("role") || "Employee"; // Default to Employee
     setUserRole(role);
     console.log("User role from localStorage:", role);
-  }, []);
 
-  const toggleReport = () => {
-    setIsReportDropdown(!isReportDropdown);
+    // Redirect user to appropriate default route based on role if they're on root
+    if (location.pathname === "/") {
+      const defaultRoute = role === "Admin" ? "/TravellersIN" : "/TravellersIntent";
+      navigate(defaultRoute, { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  // Redirect if user tries to access unauthorized route
+  useEffect(() => {
+    if (userRole) {
+      const hasAccess = checkRouteAccess(location.pathname, userRole);
+      if (!hasAccess) {
+        const defaultRoute = userRole === "Admin" ? "/TravellersIN" : "/TravellersIntent";
+        navigate(defaultRoute, { replace: true });
+      }
+    }
+  }, [location.pathname, userRole, navigate]);
+
+  // Function to check if user has access to a route
+  const checkRouteAccess = (route, role) => {
+    switch (role) {
+      case "Admin":
+        return ["/TravellersIN", "/TravellersIntent"].includes(route);
+      case "Employee":
+        return ["/TravellersIntent"].includes(route);
+      default:
+        return ["/TravellersIntent"].includes(route);
+    }
   };
 
-  // Check if any report route is active
-  const isReportActive =
-    location.pathname === "/TherapyReports" ||
-    location.pathname === "/OPReport" ||
-    location.pathname === "/OthersReport" ||
-    location.pathname === "/SourceOfReferral";
-
-  const toggleFrontOffice = () => {
-    setIsFrontOfficeDropdown(!isFrontOfficeDropdown);
+  const toggleTravellers = () => {
+    setIsTravellersDropdown(!isTravellersDropdown);
   };
 
-  const isFrontOfficeActive =
-    location.pathname === "/Registration" ||
-    location.pathname === "/PatientEdit" ||
-    location.pathname === "/ReferralDrEdit" ||
-    location.pathname === "/ConsultantDrEdit";
-
-  const toggleBilling = () => {
-    setIsBillingDropdown(!isBillingDropdown);
-  };
-
-  const isBillingActive =
-    location.pathname === "/PatientCardView/Assessments" ||
-    location.pathname === "/Therapybillingview" ||
-    location.pathname === "/PendingPayment" ||
-    location.pathname === "/OthersView";
+  // Check if any travellers route is active
+  const isTravellersActive =
+    location.pathname === "/TravellersIN" ||
+    location.pathname === "/TravellersIntent";
 
   // Function to render menu items based on user role
   const renderMenuItems = () => {
     switch (userRole) {
-      case "Receptionist":
+      case "Admin":
         return (
           <>
-            {/* Home */}
-            <SidebarItem>
-              <SidebarNavLink to="/" exact>
-                <FaHome />
-                Home
-              </SidebarNavLink>
-            </SidebarItem>
-
-            {/* Front Office */}
+            {/* Travellers */}
             <SidebarItem>
               <DropdownButton
-                onClick={toggleFrontOffice}
-                active={isFrontOfficeActive}
+                onClick={toggleTravellers}
+                active={isTravellersActive}
               >
                 <FaClipboardList />
-                <span>Front Office</span>
-                <DropdownIcon open={isFrontOfficeDropdown}>
+                <span>Travellers</span>
+                <DropdownIcon open={isTravellersDropdown}>
                   <FaCaretDown />
                 </DropdownIcon>
               </DropdownButton>
-              {isFrontOfficeDropdown && (
+              {isTravellersDropdown && (
                 <SubMenu>
-                  <SubLink to="/Registration">
-                    <span>Registration</span>
+                  <SubLink to="/TravellersIntent">
+                    <span>Travellers Intent</span>
                   </SubLink>
-
-                  <SubLink to="/PatientEdit">
-                    <span>Patient Edit</span>
-                  </SubLink>
-
-                  <SubLink to="/ReferralDrEdit">
-                    <span>Referral Dr Edit</span>
-                  </SubLink>
-
-                  <SubLink to="/ConsultantDrEdit">
-                    <span>Consultant Dr Edit</span>
+                  <SubLink to="/TravellersIN">
+                    <span>Travellers IN</span>
                   </SubLink>
                 </SubMenu>
               )}
             </SidebarItem>
+          </>
+        );
 
-            {/* Billing */}
+      case "Employee":
+        return (
+          <>
+            {/* Travellers Intent (Employee only) */}
             <SidebarItem>
-              <DropdownButton onClick={toggleBilling} active={isBillingActive}>
-                <FaReceipt />
-                <span>Billing</span>
-                <DropdownIcon open={isBillingDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isBillingDropdown && (
-                <SubMenu>
-                  <SubLink to="/PatientCardView/Assessments">
-                    <span>Assessment</span>
-                  </SubLink>
-                  <SubLink to="/Therapybillingview">
-                    <span>Therapy</span>
-                  </SubLink>
-                  <SubLink to="/PendingPayment">
-                    <span>Pending Payment</span>
-                  </SubLink>
-                  <SubLink to="/OthersView">
-                    <span>Others</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
-
-            {/* Reports */}
-            <SidebarItem>
-              <DropdownButton onClick={toggleReport} active={isReportActive}>
-                <FaChartBar />
-                <span>Reports</span>
-                <DropdownIcon open={isReportDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isReportDropdown && (
-                <SubMenu>
-                  <SubLink to="/TherapyReports">
-                    <span>Therapy Reports</span>
-                  </SubLink>
-                  <SubLink to="/OPReport">
-                    <span>OP Report</span>
-                  </SubLink>
-                  <SubLink to="/SourceOfReferral">
-                    <span>Referral Report</span>
-                  </SubLink>
-                  <SubLink to="/OthersReport">
-                    <span>Others Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
-
-            {/* Accounts */}
-            <SidebarItem>
-              <SidebarNavLink to="/Accounts">
-                <FaCalculator />
-                Accounts
+              <SidebarNavLink to="/TravellersIntent">
+                <FaClipboardList />
+                Travellers Intent
               </SidebarNavLink>
             </SidebarItem>
           </>
         );
 
-     
       default:
-        // Default case - show all items (same as Receptionist)
+        // Default case - show Employee menu
         return (
           <>
             <SidebarItem>
-              <SidebarNavLink to="/" exact>
-                <FaHome />
-                Home
-              </SidebarNavLink>
-            </SidebarItem>
-
-            <SidebarItem>
-              <DropdownButton
-                onClick={toggleFrontOffice}
-                active={isFrontOfficeActive}
-              >
+              <SidebarNavLink to="/TravellersIntent">
                 <FaClipboardList />
-                <span>Stores</span>
-                <DropdownIcon open={isFrontOfficeDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isFrontOfficeDropdown && (
-                <SubMenu>
-                  <SubLink to="/TravellersIN">
-                    <span>Registration</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
-
-            <SidebarItem>
-              <DropdownButton onClick={toggleBilling} active={isBillingActive}>
-                <FaReceipt />
-                <span>Billing</span>
-                <DropdownIcon open={isBillingDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isBillingDropdown && (
-                <SubMenu>
-                  <SubLink to="/PatientCardView/Assessments">
-                    <span>Assessment</span>
-                  </SubLink>
-                  <SubLink to="/Therapybillingview">
-                    <span>Therapy</span>
-                  </SubLink>
-                  <SubLink to="/PendingPayment">
-                    <span>Pending Payment</span>
-                  </SubLink>
-                  <SubLink to="/OthersView">
-                    <span>Others</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
-
-            <SidebarItem>
-              <DropdownButton onClick={toggleReport} active={isReportActive}>
-                <FaChartBar />
-                <span>Reports</span>
-                <DropdownIcon open={isReportDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isReportDropdown && (
-                <SubMenu>
-                  <SubLink to="/TherapyReports">
-                    <span>Therapy Reports</span>
-                  </SubLink>
-                  <SubLink to="/OPReport">
-                    <span>OP Report</span>
-                  </SubLink>
-                  <SubLink to="/SourceOfReferral">
-                    <span>Referral Report</span>
-                  </SubLink>
-                  <SubLink to="/OthersReport">
-                    <span>Others Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
-
-            <SidebarItem>
-              <SidebarNavLink to="/Accounts">
-                <FaCalculator />
-                Accounts
+                Travellers Intent
               </SidebarNavLink>
             </SidebarItem>
           </>
@@ -455,7 +327,7 @@ const Sidebar = () => {
   return (
     <SidebarContainer>
       <Logo>
-        <h1>Milestone Center</h1>
+        <h1>TMC Stock</h1>
       </Logo>
       <SidebarMenu>{renderMenuItems()}</SidebarMenu>
     </SidebarContainer>

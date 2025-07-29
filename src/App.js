@@ -3,21 +3,26 @@ import {
   BrowserRouter as Router,
   Route,
   Routes,
-  useLocation,
   Navigate,
 } from "react-router-dom";
 import styled from "styled-components";
+import Sidebar from "./Components/Sidebar"; // Import your sidebar component
 import TravellersIN from "./Components/TravellersIN";
+import TravellersIntent from "./Components/TravellersIntent";
 
+const AppContainer = styled.div`
+  display: flex;
+  min-height: 100vh;
+`;
 
 const ContentWrapper = styled.div`
-  margin-left: 200px; /* Same width as the sidebar */
+  margin-left: 250px; /* Same width as the sidebar */
   padding: 20px 80px;
+  flex: 1;
+  background-color: #f8f9fa;
 `;
 
 const App = () => {
-  const location = useLocation(); // Get the current route
-
   // Check token on app initialization
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -30,19 +35,20 @@ const App = () => {
     }
   }, []);
 
-
-
   return (
-    <>      
-        <ContentWrapper>
-          <Routes>
-            {/* Default route redirects to Registration */}
-            <Route path="/" element={<Navigate to="/TravellersIN" replace />} />
-            <Route path="/TravellersIN" element={<TravellersIN />} />
-                      </Routes>
-        </ContentWrapper>
-     
-    </>
+    <AppContainer>
+      <Sidebar />
+      <ContentWrapper>
+        <Routes>
+          
+          
+          {/* All routes are accessible, but sidebar controls navigation */}
+          <Route path="/TravellersIN" element={<TravellersIN />} />
+          <Route path="/TravellersIntent" element={<TravellersIntent />} />
+        
+        </Routes>
+      </ContentWrapper>
+    </AppContainer>
   );
 };
 

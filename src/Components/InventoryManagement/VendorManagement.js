@@ -132,10 +132,6 @@ const handleDelete = async (id) => {
   // ===== Save Edit =====
   const handleSave = async () => {
     try {
-      if (!form.name || !form.phone) {
-        alert("Name and Phone are required");
-        return;
-      }
       await apiRequest(
         `${StoreTrustBaseUrl}vendors/update/${editingVendor}/`,
         "PATCH",
@@ -224,11 +220,11 @@ const handleDelete = async (id) => {
                   <Td>
                     {isEditing ? (
                       <Input
-                        value={form.Phone}
-                        onChange={(e) => handleChange("Phone", e.target.value)}
+                        value={form.phone}
+                        onChange={(e) => handleChange("phone", e.target.value)}
                       />
                     ) : (
-                      vendor.Phone || "-"
+                      vendor.phone || "-"
                     )}
                   </Td>
                   <Td>

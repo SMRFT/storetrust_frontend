@@ -1662,12 +1662,15 @@ export const InvoicePrimaryButton = styled.button`
 // History Modal components
 export const HistoryModalOverlay = styled.div`
   position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;   // 👈 higher than GRN details (which is probably 50–100)
+  z-index: 2000;
 `;
 
 export const HistoryModalContent = styled.div`

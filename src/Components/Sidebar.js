@@ -26,9 +26,9 @@ const Sidebar = () => {
 
   // Get user role from localStorage and handle initial navigation
   useEffect(() => {
-    const role = localStorage.getItem("role") || "Employee"; // Default to Employee
+    const role = localStorage.getItem("role") || "Admin"; // Default to Employee
     setUserRole(role);
-    console.log("User role from localStorage:", role);
+    // console.log("User role from localStorage:", role);
 
     // Redirect user to appropriate default route based on role if they're on root
     if (location.pathname === "/") {
@@ -119,12 +119,12 @@ const Sidebar = () => {
                   <SubLink to="/TravellersIntent">
                     <span>Travellers Intent</span>
                   </SubLink>
-                  <SubLink to="/GRNGeneration">
-                    <span>GRN Generation</span>
-                  </SubLink>
                   <SubLink to="/TravellersIntentReport">
                     <span>Travellers Intent Report</span>
                   </SubLink>
+                  <SubLink to="/GRNGeneration">
+                    <span>GRN Generation</span>
+                  </SubLink>                  
                  <SubLink to="/TravellersINGRNReport">
                     <span>GRN Report</span>
                   </SubLink>

@@ -116,7 +116,7 @@ const handleDelete = async (id) => {
   if (!window.confirm("Are you sure you want to delete this item?")) return;
   try {
     // DELETE request to backend
-    await apiRequest(`${StoreTrustBaseUrl}delete_item/${id}/`, "DELETE");
+    await apiRequest(`${StoreTrustBaseUrl}delete_item/${id}/`, "PATCH");
 
     // Remove from frontend state immediately
     setItems((prevItems) => prevItems.filter((item) => item._id !== id));

@@ -189,38 +189,43 @@ const formattedPayments = validPayments.map((payment) => {
 };
 
   // Fetch previous purchases
-  const fetchPreviousPurchases = async (hsn, itemName) => {
-    setHistoryLoading(true);
-    try {
-      console.log(`Fetching previous purchases for HSN: ${hsn}, Item: ${itemName}`);
-      const encodedHsn = encodeURIComponent(hsn);
-      const encodedItemName = encodeURIComponent(itemName);
-      const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodedHsn}&item_name=${encodedItemName}`;
-      console.log("Request URL:", url);
+   const fetchPreviousPurchases = async (hsn, itemName) => {
+  setHistoryLoading(true);
+  try {
+    console.log(
+      `Fetching previous purchases for HSN: ${hsn}, Item: ${itemName}`
+    );
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!response.ok) {
-        console.error("HTTP error:", response.status, await response.text());
-        toast.error("Failed to fetch purchase history");
-        return [];
-      }
-      const data = await response.json();
-      if (data.status === "success") {
-        return data.data;
-      }
-      toast.error(data.message || "Failed to fetch purchase history");
+    const encodedHsn = encodeURIComponent(hsn);
+    const encodedItemName = encodeURIComponent(itemName);
+
+    const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodedHsn}&item_name=${encodedItemName}`;
+
+    console.log("Request URL:", url);
+
+    const result = await apiRequest(url, "GET");
+
+    if (!result.success) {
+      console.error("API error:", result.error);
       return [];
-    } catch (error) {
-      console.error("Network error fetching previous purchases:", error);
-      toast.error("Network error while fetching purchase history");
-      return [];
-    } finally {
-      setHistoryLoading(false);
     }
-  };
+
+    const data = result.data;
+    console.log("Previous purchases response:", data);
+
+    if (data.status === "success") {
+      return data.data || [];
+    } else {
+      console.error("API error:", data.message);
+      return [];
+    }
+  } catch (error) {
+    console.error("Unexpected error fetching previous purchases:", error);
+    return [];
+  } finally {
+    setHistoryLoading(false);
+  }
+};
 
   const handleShowHistory = async (item) => {
     const hsn = item.hsn?.toString().trim();
@@ -565,10 +570,7 @@ const handleEdit = (record) => {
           <div class="invoice-footer">
             <div class="footer-item">
               <div class="label">Entered By : ${record.created_by || "N/A"}</div>
-            </div>
-            <div class="footer-item">
-              <div class="label">Verified By : Administrator</div>
-            </div>
+            </div>           
           </div>
         </body>
       </html>
@@ -625,7 +627,7 @@ const handleEdit = (record) => {
     printWindow.document.write(`
       <html>
         <head>
-          <title>GRN Report</title>
+          <title>Travellers INN GRN Report</title>
           <style>
             body { font-family: Arial, sans-serif; }
             table { border-collapse: collapse; width: 100%; }
@@ -635,7 +637,7 @@ const handleEdit = (record) => {
           </style>
         </head>
         <body>
-          <h1>GRN Report</h1>
+          <h1>Travellers INN GRN Report</h1>
           ${printContent}
         </body>
       </html>
@@ -1003,8 +1005,8 @@ const handleEdit = (record) => {
   return (
     <Container>
       <Header>
-        <Title>GRN Report</Title>
-        <Subtitle>Manage and view all GRN records</Subtitle>
+        <Title>Travellers INN GRN Report</Title>
+        {/* <Subtitle>Manage and view all GRN records</Subtitle> */}
       </Header>
       <FiltersSection>
         <FiltersGrid>

@@ -24,15 +24,21 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+ 
   // Get user role from localStorage and handle initial navigation
   useEffect(() => {
-    const role = localStorage.getItem("role") || "Admin"; // Default to Employee
+    const role = localStorage.getItem("role") || "Employee"; // Default to Employee
     setUserRole(role);
     // console.log("User role from localStorage:", role);
 
     // Redirect user to appropriate default route based on role if they're on root
     if (location.pathname === "/") {
-      const defaultRoute = role === "Admin" ? "/GRNGeneration" : "/TravellersIntent";
+      let defaultRoute;
+      if (role === "Admin" || role === "Accounts") {
+        defaultRoute = "/TravellersINGRNReport";
+      } else {
+        defaultRoute = "/TravellersIntent";
+      }
       navigate(defaultRoute, { replace: true });
     }
   }, [location.pathname, navigate]);
@@ -52,10 +58,12 @@ const Sidebar = () => {
   const checkRouteAccess = (route, role) => {
     switch (role) {
       case "Admin":
-        return ["/GRNGeneration", "/TravellersIntent","/TravellersIntentReport","/TravellersINGRNReport","/AddItems","/AddVendor",          "/ItemManagement",
-          "/VendorManagement","/CollegeIN","/CollegeIntentReport","/CollegeIntent","/CollegeGRNReport","/MessIN","/MessIntentReport","/MessIntent","/MessGRNReport"].includes(route);
+        return ["/GRNGeneration", "/TravellersIntent","/TravellersIntentReport","/TravellersINGRNReport","/AddItems","/AddVendor","/ItemManagement",
+          "/VendorManagement"].includes(route);
       case "Store Manager":
         return ["/TravellersIntent"].includes(route);
+        case "Accounts":
+        return ["/TravellersINGRNReport"].includes(route);
       case "Employee":
         return ["/TravellersIntent"].includes(route);
       default:
@@ -130,61 +138,7 @@ const Sidebar = () => {
                   </SubLink>
                 </SubMenu>
               )}
-              {/* College */}
-              {/* <DropdownButton
-                onClick={toggleCollege}
-                active={isCollegeActive}
-              >
-                <FaClipboardList />
-                <span>College</span>
-                <DropdownIcon open={isCollegeDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isCollegeDropdown && (
-                <SubMenu>
-                  <SubLink to="/CollegeIntent">
-                    <span>College Intent</span>
-                  </SubLink>
-                   <SubLink to="/CollegeIntentReport">
-                    <span>College Intent Report</span>
-                  </SubLink>
-                  <SubLink to="/CollegeIN">
-                    <span>College IN</span>
-                  </SubLink>  
-                 <SubLink to="/CollegeGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>               
-                </SubMenu>
-              )} */}
-              {/* Mess */}
-              {/* <DropdownButton
-                onClick={toggleMess}
-                active={isMessActive}
-              >
-                <FaClipboardList />
-                <span>Mess</span>
-                <DropdownIcon open={isMessDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isMessDropdown && (
-                <SubMenu>
-                  <SubLink to="/MessIntent">
-                    <span>Mess Intent</span>
-                  </SubLink>                 
-                  <SubLink to="/MessIntentReport">
-                    <span>Mess Intent Report</span>
-                  </SubLink>
-                   <SubLink to="/MessIN">
-                    <span>Mess IN</span>
-                  </SubLink>
-                  <SubLink to="/MessGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-               */}
+             
               {/* Inventory Management */}
               <DropdownButton
                 onClick={toggleInventory}
@@ -239,61 +193,58 @@ const Sidebar = () => {
                   </SubLink>
                 </SubMenu>
               )}
-              {/* College */}
-              {/* <DropdownButton
-                onClick={toggleCollege}
-                active={isCollegeActive}
+             
+              {/* Inventory Management */}
+              <DropdownButton
+                onClick={toggleInventory}
+                active={isInventoryActive}
               >
                 <FaClipboardList />
-                <span>College</span>
-                <DropdownIcon open={isCollegeDropdown}>
+                <span>Inventory Management</span>
+                <DropdownIcon open={isInventoryDropdown}>
                   <FaCaretDown />
                 </DropdownIcon>
               </DropdownButton>
-              {isCollegeDropdown && (
+              {isInventoryDropdown && (
                 <SubMenu>
-                  <SubLink to="/CollegeIntent">
-                    <span>College Intent</span>
+                  <SubLink to="/ItemManagement">
+                    <span>Item Management</span>
                   </SubLink>
-                   <SubLink to="/CollegeIntentReport">
-                    <span>College Intent Report</span>
+                  <SubLink to="/VendorManagement">
+                    <span>Vendor Management</span>
                   </SubLink>
-                  <SubLink to="/CollegeIN">
-                    <span>College IN</span>
-                  </SubLink>  
-                 <SubLink to="/CollegeGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>               
                 </SubMenu>
-              )} */}
-              {/* Mess */}
-              {/* <DropdownButton
-                onClick={toggleMess}
-                active={isMessActive}
+              )}
+            </SidebarItem>
+          </>
+        );
+
+
+
+        case "Accounts":
+        return (
+          <>
+            
+            <SidebarItem>
+              {/* Travellers */}
+              <DropdownButton
+                onClick={toggleTravellers}
+                active={isTravellersActive}
               >
                 <FaClipboardList />
-                <span>Mess</span>
-                <DropdownIcon open={isMessDropdown}>
+                <span>GRN Report</span>
+                <DropdownIcon open={isTravellersDropdown}>
                   <FaCaretDown />
                 </DropdownIcon>
               </DropdownButton>
-              {isMessDropdown && (
-                <SubMenu>
-                  <SubLink to="/MessIntent">
-                    <span>Mess Intent</span>
-                  </SubLink>                 
-                  <SubLink to="/MessIntentReport">
-                    <span>Mess Intent Report</span>
-                  </SubLink>
-                   <SubLink to="/MessIN">
-                    <span>Mess IN</span>
-                  </SubLink>
-                  <SubLink to="/MessGRNReport">
+              {isTravellersDropdown && (
+                <SubMenu>  
+                 <SubLink to="/TravellersINGRNReport">
                     <span>GRN Report</span>
                   </SubLink>
                 </SubMenu>
-              )} */}
-              
+              )}
+             
               {/* Inventory Management */}
               <DropdownButton
                 onClick={toggleInventory}

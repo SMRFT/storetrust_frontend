@@ -838,7 +838,7 @@ const handleEditItem = (id) => {
     if (grn_number) {
       // ✅ Update existing record
       result = await apiRequest(
-  `${StoreTrustbaseurl}travellers-in/${encodeURIComponent(grn_number)}/update/`,
+  `${StoreTrustbaseurl}travellers-in/update/${encodeURIComponent(grn_number)}/`,
   "PATCH",
   submitData
 );
@@ -1067,48 +1067,42 @@ const VendorDropdown = () => {
 
 
   const fetchPreviousPurchases = async (hsn, itemName) => {
-    setHistoryLoading(true);
-    try {
-      console.log(
-        `Fetching previous purchases for HSN: ${hsn}, Item: ${itemName}`
-      );
+  setHistoryLoading(true);
+  try {
+    console.log(
+      `Fetching previous purchases for HSN: ${hsn}, Item: ${itemName}`
+    );
 
-      const encodedHsn = encodeURIComponent(hsn);
-      const encodedItemName = encodeURIComponent(itemName);
+    const encodedHsn = encodeURIComponent(hsn);
+    const encodedItemName = encodeURIComponent(itemName);
 
-      const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodedHsn}&item_name=${encodedItemName}`;
+    const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodedHsn}&item_name=${encodedItemName}`;
 
-      console.log("Request URL:", url);
+    console.log("Request URL:", url);
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+    const result = await apiRequest(url, "GET");
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("HTTP error:", response.status, errorText);
-        return [];
-      }
-
-      const data = await response.json();
-      console.log("Previous purchases response:", data);
-
-      if (data.status === "success") {
-        return data.data || [];
-      } else {
-        console.error("API error:", data.message);
-        return [];
-      }
-    } catch (error) {
-      console.error("Network error fetching previous purchases:", error);
+    if (!result.success) {
+      console.error("API error:", result.error);
       return [];
-    } finally {
-      setHistoryLoading(false);
     }
-  };
+
+    const data = result.data;
+    console.log("Previous purchases response:", data);
+
+    if (data.status === "success") {
+      return data.data || [];
+    } else {
+      console.error("API error:", data.message);
+      return [];
+    }
+  } catch (error) {
+    console.error("Unexpected error fetching previous purchases:", error);
+    return [];
+  } finally {
+    setHistoryLoading(false);
+  }
+};
 
   // Handle history button click
   const handleShowHistory = async (item) => {

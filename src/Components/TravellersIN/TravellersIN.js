@@ -1352,12 +1352,13 @@ const VendorDropdown = () => {
             <VendorDropdown />
 
             <FormGroup>
-              <Label>Date</Label>
+              <Label>GRN Date</Label>
               <Input
                 type="date"
                 name="date"
                 value={formData.date}
                 onChange={handleInputChange}
+                disabled
               />
             </FormGroup>
             <FormGroup>

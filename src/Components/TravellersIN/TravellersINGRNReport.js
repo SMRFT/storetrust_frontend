@@ -21,11 +21,16 @@ import apiRequest from "../apiRequest";
 import { toast } from "react-toastify";
 import { useNavigate } from 'react-router-dom';
 
+ // Update the formatDate function at the top of your component
 const formatDate = (date) => {
   if (!date || new Date(date).toString() === "Invalid Date") {
     return "N/A";
   }
-  return new Date(date).toISOString().split("T")[0]; // e.g., 2025-08-26
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`; // dd/mm/yyyy format
 };
 
 const formatDateTime = (dateStr) => {
@@ -54,6 +59,7 @@ const GRNReport = () => {
     from_date: new Date().toISOString().split("T")[0],
     to_date: new Date().toISOString().split("T")[0],
     search: "",
+    category: "ALL" // NEW: Added category filter
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -76,6 +82,16 @@ const GRNReport = () => {
   
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
+    const getCategoryTitle = () => {
+    switch(filters.category) {
+      case "TRAVELLERS IN CASH":
+        return "Travellers IN Cash GRN Report";
+      case "TRAVELLERS IN CREDIT":
+        return "Travellers IN Credit GRN Report";
+      default:
+        return "Travellers INN GRN Report";
+    }
+  };
   // Payment Modal Handlers
   const handleOpenPaymentModal = (record) => {
     setPaymentDetails({
@@ -281,6 +297,12 @@ const activeRecords = response.data.data.filter(
 
   const applyFilters = useCallback(() => {
     let filtered = [...allData];
+     // NEW: Apply category filter
+    if (filters.category && filters.category !== "ALL") {
+      filtered = filtered.filter((item) => 
+        item.purchase_category?.toUpperCase() === filters.category
+      );
+    }
     if (filters.from_date) {
       filtered = filtered.filter((item) => {
         const itemDate = new Date(item.date);
@@ -314,15 +336,16 @@ const activeRecords = response.data.data.filter(
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSearch = () => {
-    applyFilters();
-  };
+  // const handleSearch = () => {
+  //   applyFilters();
+  // };
 
   const clearFilters = () => {
     setFilters({
       from_date: "",
       to_date: "",
       search: "",
+      category: "ALL"
     });
     setFilteredData(allData);
     setCurrentPage(1);
@@ -486,6 +509,7 @@ const handleEdit = (record) => {
                 <th>QTY</th>
                 <th>P Rate</th>
                 <th>P.cost</th>
+                <th>MRP</th>
                 <th>Discount</th>
                 <th>Taxable<br/>Amount</th>
                 <th>Total<br/>Amount</th>
@@ -504,6 +528,7 @@ const handleEdit = (record) => {
                   <td class="center-cell">${item.quantity || "N/A"}</td>
                   <td class="number-cell">₹${parseFloat(item.unitPrice || 0).toFixed(2)}</td>
                   <td class="number-cell">₹${parseFloat(item.purchaseCost || 0).toFixed(2)}</td>
+                  <td class="number-cell">₹${parseFloat(item.mrp || 0).toFixed(2)}</td>
                   <td class="number-cell">₹${parseFloat(item.discountedAmt || 0).toFixed(2)}</td>
                   <td class="number-cell">₹${parseFloat(item.itemValue || item.purchaseCost || 0).toFixed(2)}</td>
                   <td class="number-cell">₹${parseFloat(item.purchaseCost || 0).toFixed(2)}</td>
@@ -580,72 +605,194 @@ const handleEdit = (record) => {
     printWindow.print();
   };
 
-  const exportToExcel = () => {
-    const headers = [
-      "GRN Number",
-      "Purchase Category",
-      "Vendor",
-      "Date",
-      "Invoice No",
-      "Invoice Date",
-      "Payment Method",
-      "Total Amount",
-      "Payment Status",
-      "Amount Paid",
-      "Pending Amount",
-    ];
-    const csvContent = [
-      headers.join(","),
-      ...filteredData.map((row) =>
-        [
-          row.grn_number,
-          row.purchase_category,
-          row.vendor,
-          new Date(row.date).toLocaleDateString(),
-          row.invoice_no,
-          new Date(row.invoice_date).toLocaleDateString(),
-          row.payment_details?.payment_method || row.payment_method || "N/A",
-          parseFloat(row.total_amount || 0).toFixed(2),
-          row.payment_details?.status || row.payment_status || "N/A",
-          parseFloat(row.payment_details?.amount_paid ||row.total_amount_paid || 0).toFixed(2),
-          parseFloat(row.payment_details?.pending_amount || row.pending_amount || 0).toFixed(2),
-        ].join(",")
-      ),
-    ].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `GRN_Report_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
 
-  const handlePrint = () => {
-    const printContent = document.getElementById("report-table").outerHTML;
-    const printWindow = window.open("", "", "width=800,height=600");
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Travellers INN GRN Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .no-print { display: none; }
-          </style>
-        </head>
-        <body>
-          <h1>Travellers INN GRN Report</h1>
-          ${printContent}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
-  };
+// Updated exportToExcel function
+const exportToExcel = () => {
+  const headers = [
+    "Date",
+    "GRN Number",
+    "Vendor",
+    "Invoice No",
+    "Total Amount",
+    "Payment Status",
+    "Advance",
+    "Amount Paid",
+    "Pending Amount",
+  ];
+  const csvContent = [
+    headers.join(","),
+    ...filteredData.map((row) => {
+      const [payment1] = formatPaymentHistory(row.payment_status);
+      // Remove HTML tags from payment1
+      const cleanPayment1 = payment1.replace(/<br\s*\/?>/gi, ' | ').replace(/<\/?[^>]+(>|$)/g, "");
+      
+      return [
+        formatDate(row.date), // Now returns dd/mm/yyyy
+        row.grn_number,
+        row.vendor,
+        row.invoice_no,
+        parseFloat(row.total_amount || 0).toFixed(2),
+        row.payment_details?.status || row.payment_status || "N/A",
+        cleanPayment1,
+        parseFloat(row.total_amount_paid || 0).toFixed(2),
+        parseFloat(row.pending_amount || 0).toFixed(2),
+      ].join(",");
+    }),
+  ].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const categoryName = filters.category === "ALL" ? "All" : filters.category.replace(/ /g, "_");
+  a.download = `GRN_Report_${categoryName}_${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
 
+// Updated handlePrint function
+const handlePrint = () => {
+  const printWindow = window.open("", "", "width=800,height=600");
+  
+  const tableRows = filteredData.map((row, index) => {
+    const [payment1] = formatPaymentHistory(row.payment_status);
+    return `
+      <tr>
+        <td style="white-space: nowrap;">${formatDate(row.date)}</td>
+        <td style="white-space: nowrap;">${row.grn_number || "N/A"}</td>
+        <td style="white-space: nowrap;">${row.vendor || "N/A"}</td>
+        <td style="white-space: nowrap;">${row.invoice_no || "N/A"}</td>
+        <td style="white-space: nowrap;">${formatCurrency(row.total_amount)}</td>
+        <td style="white-space: nowrap;">${row.payment_details?.status || "N/A"}</td>
+        <td>${payment1}</td>
+        <td style="white-space: nowrap;">${formatCurrency(row.total_amount_paid)}</td>
+        <td style="white-space: nowrap;">${formatCurrency(row.pending_amount)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${getCategoryTitle()}</title>
+        <style>
+          @page {
+            size: auto;
+            margin: 10mm;
+          }
+          
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 0;
+            padding: 10px;
+            font-size: 11px;
+          }
+          
+          h1 {
+            text-align: center;
+            font-size: 16px;
+            margin: 10px 0;
+            word-wrap: break-word;
+          }
+          
+          table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            table-layout: auto;
+            font-size: 10px;
+          }
+          
+          th, td { 
+            border: 1px solid #ddd; 
+            padding: 4px 6px; 
+            text-align: left;
+            vertical-align: top;
+          }
+          
+          th { 
+            background-color: #f2f2f2; 
+            font-weight: bold;
+            font-size: 10px;
+            word-wrap: break-word;
+          }
+          
+          td {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+          }
+          
+          /* Landscape specific adjustments */
+          @media print and (orientation: landscape) {
+            body {
+              font-size: 10px;
+            }
+            table {
+              font-size: 9px;
+            }
+            th, td {
+              padding: 3px 4px;
+            }
+          }
+          
+          /* Portrait specific adjustments */
+          @media print and (orientation: portrait) {
+            body {
+              font-size: 9px;
+            }
+            table {
+              font-size: 8px;
+            }
+            th, td {
+              padding: 2px 3px;
+            }
+            h1 {
+              font-size: 14px;
+            }
+          }
+          
+          @media print {
+            body { 
+              margin: 0;
+              padding: 5px;
+            }
+            .no-print { 
+              display: none; 
+            }
+            table {
+              page-break-inside: auto;
+            }
+            tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>${getCategoryTitle()}</h1>
+        <table>
+          <thead>
+            <tr>
+              <th style="white-space: nowrap;">Date</th>
+              <th style="white-space: nowrap;">GRN Number</th>
+              <th style="white-space: nowrap;">Vendor</th>
+              <th style="white-space: nowrap;">Invoice No</th>
+              <th style="white-space: nowrap;">Total Amount</th>
+              <th style="white-space: nowrap;">Payment Status</th>
+              <th style="white-space: nowrap;">Advance</th>
+              <th style="white-space: nowrap;">Amount Paid</th>
+              <th style="white-space: nowrap;">Pending Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+};
   const totalPages = Math.ceil(filteredData.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
@@ -1005,7 +1152,7 @@ const handleEdit = (record) => {
   return (
     <Container>
       <Header>
-        <Title>Travellers INN GRN Report</Title>
+        <Title>{getCategoryTitle()}</Title>
         {/* <Subtitle>Manage and view all GRN records</Subtitle> */}
       </Header>
       <FiltersSection>
@@ -1032,6 +1179,20 @@ const handleEdit = (record) => {
               />
             </InputWrapper>
           </FilterGroup>
+           {/* NEW: Category Dropdown */}
+          <FilterGroup>
+            <Label>Purchase Category</Label>
+            <InputWrapper>
+              <PaymentSelect
+                value={filters.category}
+                onChange={(e) => handleFilterChange("category", e.target.value)}
+              >
+                <option value="ALL">All Categories</option>
+                <option value="TRAVELLERS IN CASH">TRAVELLERS IN CASH</option>
+                <option value="TRAVELLERS IN CREDIT">TRAVELLERS IN CREDIT</option>
+              </PaymentSelect>
+            </InputWrapper>
+          </FilterGroup>
           <FilterGroup>
             <Label>Search</Label>
             <InputWrapper>
@@ -1046,7 +1207,7 @@ const handleEdit = (record) => {
           </FilterGroup>
           <ButtonGroup>
             <ButtonContainer>
-              <CustomButton variant="primary" onClick={handleSearch}>Search</CustomButton>
+              {/* <CustomButton variant="primary" onClick={handleSearch}>Search</CustomButton> */}
               <CustomButton variant="secondary" onClick={clearFilters}>Clear</CustomButton>
             </ButtonContainer>
           </ButtonGroup>
@@ -1089,9 +1250,9 @@ const handleEdit = (record) => {
         <Th style={{whiteSpace:"nowrap"}}>Invoice No</Th>
         <Th style={{whiteSpace:"nowrap"}}>Total Amount</Th>
         <Th style={{whiteSpace:"nowrap"}}>Payment Status</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Payment 1</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Payment 2</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Payment 3</Th>
+        <Th style={{whiteSpace:"nowrap"}}>Advance</Th>
+        {/* <Th style={{whiteSpace:"nowrap"}}>Payment 2</Th>
+        <Th style={{whiteSpace:"nowrap"}}>Payment 3</Th> */}
         <Th style={{whiteSpace:"nowrap"}}>Amount Paid</Th>
         <Th style={{whiteSpace:"nowrap"}}>Pending Amount</Th>
            <Th className="no-print" style={{whiteSpace:"nowrap"}}>Actions</Th>
@@ -1119,8 +1280,8 @@ const handleEdit = (record) => {
                 </CustomBadge>
               </Td>
               <Td dangerouslySetInnerHTML={{ __html: payment1 }} />
-              <Td dangerouslySetInnerHTML={{ __html: payment2 }} />
-              <Td dangerouslySetInnerHTML={{ __html: payment3 }} />
+              {/* <Td dangerouslySetInnerHTML={{ __html: payment2 }} />
+              <Td dangerouslySetInnerHTML={{ __html: payment3 }} /> */}
               <Td>{formatCurrency(row.total_amount_paid)}</Td>
               <Td>{formatCurrency(row.pending_amount)}</Td>
               <Td className="no-print" style={{whiteSpace:"nowrap"}}>

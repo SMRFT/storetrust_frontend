@@ -19,12 +19,11 @@ const Sidebar = () => {
   const [isTravellersDropdown, setIsTravellersDropdown] = useState(false);
   const [isCollegeDropdown, setIsCollegeDropdown] = useState(false);
   const [isMessDropdown, setIsMessDropdown] = useState(false);
-   const [isInventoryDropdown, setIsInventoryDropdown] = useState(false);
+  const [isInventoryDropdown, setIsInventoryDropdown] = useState(false);
   const [userRole, setUserRole] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
 
- 
   // Get user role from localStorage and handle initial navigation
   useEffect(() => {
     const role = localStorage.getItem("role") || "Employee"; // Default to Employee
@@ -34,7 +33,11 @@ const Sidebar = () => {
     // Redirect user to appropriate default route based on role if they're on root
     if (location.pathname === "/") {
       let defaultRoute;
-      if (role === "Admin" || role === "Accounts") {
+      if (role === "Admin") {
+        defaultRoute = "/TravellersINGRNReport";
+      } else if (role === "Store Manager") {
+        defaultRoute = "/GRNGeneration";
+      } else if (role === "Accounts") {
         defaultRoute = "/TravellersINGRNReport";
       } else {
         defaultRoute = "/TravellersIntent";
@@ -45,10 +48,19 @@ const Sidebar = () => {
 
   // Redirect if user tries to access unauthorized route
   useEffect(() => {
-    if (userRole) {
+    if (userRole && location.pathname !== "/") {
       const hasAccess = checkRouteAccess(location.pathname, userRole);
       if (!hasAccess) {
-        const defaultRoute = userRole === "Admin" ? "/GRNGeneration" : "/TravellersIntent";
+        let defaultRoute;
+        if (userRole === "Admin") {
+          defaultRoute = "/TravellersINGRNReport";
+        } else if (userRole === "Store Manager") {
+          defaultRoute = "/GRNGeneration";
+        } else if (userRole === "Accounts") {
+          defaultRoute = "/TravellersINGRNReport";
+        } else {
+          defaultRoute = "/TravellersIntent";
+        }
         navigate(defaultRoute, { replace: true });
       }
     }
@@ -58,11 +70,25 @@ const Sidebar = () => {
   const checkRouteAccess = (route, role) => {
     switch (role) {
       case "Admin":
-        return ["/GRNGeneration", "/TravellersIntent","/TravellersIntentReport","/TravellersINGRNReport","/AddItems","/AddVendor","/ItemManagement",
-          "/VendorManagement"].includes(route);
+        return [
+          "/GRNGeneration",
+          "/TravellersIntent",
+          "/TravellersIntentReport",
+          "/TravellersINGRNReport",
+          "/AddItems",
+          "/AddVendor",
+          "/ItemManagement",
+          "/VendorManagement",
+        ].includes(route);
       case "Store Manager":
-        return ["/TravellersIntent"].includes(route);
-        case "Accounts":
+        return [
+          "/GRNGeneration",
+          "/TravellersIntentReport",
+          "/TravellersINGRNReport",
+          "/ItemManagement",
+          "/VendorManagement",
+        ].includes(route);
+      case "Accounts":
         return ["/TravellersINGRNReport"].includes(route);
       case "Employee":
         return ["/TravellersIntent"].includes(route);
@@ -74,8 +100,10 @@ const Sidebar = () => {
   const toggleTravellers = () => {
     setIsTravellersDropdown(!isTravellersDropdown);
   };
-   const toggleInventory = () => setIsInventoryDropdown(!isInventoryDropdown);
-   const isTravellersActive =
+
+  const toggleInventory = () => setIsInventoryDropdown(!isInventoryDropdown);
+
+  const isTravellersActive =
     location.pathname === "/GRNGeneration" ||
     location.pathname === "/TravellersIntent" ||
     location.pathname === "/TravellersIntentReport" ||
@@ -84,22 +112,25 @@ const Sidebar = () => {
   const toggleCollege = () => {
     setIsCollegeDropdown(!isCollegeDropdown);
   };
-   const isCollegeActive =
+
+  const isCollegeActive =
     location.pathname === "/CollegeIN" ||
     location.pathname === "/CollegeIntent" ||
-    location.pathname === "/CollegeIntentReport"||
+    location.pathname === "/CollegeIntentReport" ||
     location.pathname === "/CollegeGRNReport";
 
   const toggleMess = () => {
     setIsMessDropdown(!isMessDropdown);
   };
-   const isMessActive =
+
+  const isMessActive =
     location.pathname === "/,MessIN" ||
     location.pathname === "/MessIntent" ||
-    location.pathname === "/MessIntentReport"||
+    location.pathname === "/MessIntentReport" ||
     location.pathname === "/MessGRNReport";
+
   // Check if any travellers route is active
-   const isInventoryActive =
+  const isInventoryActive =
     location.pathname === "/ItemManagement" ||
     location.pathname === "/VendorManagement";
 
@@ -109,7 +140,6 @@ const Sidebar = () => {
       case "Admin":
         return (
           <>
-            
             <SidebarItem>
               {/* Travellers */}
               <DropdownButton
@@ -132,13 +162,13 @@ const Sidebar = () => {
                   </SubLink>
                   <SubLink to="/GRNGeneration">
                     <span>GRN Generation</span>
-                  </SubLink>                  
-                 <SubLink to="/TravellersINGRNReport">
+                  </SubLink>
+                  <SubLink to="/TravellersINGRNReport">
                     <span>GRN Report</span>
                   </SubLink>
                 </SubMenu>
               )}
-             
+
               {/* Inventory Management */}
               <DropdownButton
                 onClick={toggleInventory}
@@ -167,7 +197,6 @@ const Sidebar = () => {
       case "Store Manager":
         return (
           <>
-            
             <SidebarItem>
               {/* Travellers */}
               <DropdownButton
@@ -181,19 +210,19 @@ const Sidebar = () => {
                 </DropdownIcon>
               </DropdownButton>
               {isTravellersDropdown && (
-                <SubMenu>                
+                <SubMenu>
                   <SubLink to="/GRNGeneration">
                     <span>GRN Generation</span>
                   </SubLink>
                   <SubLink to="/TravellersIntentReport">
                     <span>Travellers Intent Report</span>
                   </SubLink>
-                 <SubLink to="/TravellersINGRNReport">
+                  <SubLink to="/TravellersINGRNReport">
                     <span>GRN Report</span>
                   </SubLink>
                 </SubMenu>
               )}
-             
+
               {/* Inventory Management */}
               <DropdownButton
                 onClick={toggleInventory}
@@ -219,12 +248,9 @@ const Sidebar = () => {
           </>
         );
 
-
-
-        case "Accounts":
+      case "Accounts":
         return (
           <>
-            
             <SidebarItem>
               {/* Travellers */}
               <DropdownButton
@@ -238,31 +264,9 @@ const Sidebar = () => {
                 </DropdownIcon>
               </DropdownButton>
               {isTravellersDropdown && (
-                <SubMenu>  
-                 <SubLink to="/TravellersINGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-             
-              {/* Inventory Management */}
-              <DropdownButton
-                onClick={toggleInventory}
-                active={isInventoryActive}
-              >
-                <FaClipboardList />
-                <span>Inventory Management</span>
-                <DropdownIcon open={isInventoryDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isInventoryDropdown && (
                 <SubMenu>
-                  <SubLink to="/ItemManagement">
-                    <span>Item Management</span>
-                  </SubLink>
-                  <SubLink to="/VendorManagement">
-                    <span>Vendor Management</span>
+                  <SubLink to="/TravellersINGRNReport">
+                    <span>GRN Report</span>
                   </SubLink>
                 </SubMenu>
               )}

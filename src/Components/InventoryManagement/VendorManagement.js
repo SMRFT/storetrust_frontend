@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FiEdit, FiTrash2 } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiSearch } from "react-icons/fi";
 import styled from "styled-components";
 import apiRequest from "../apiRequest"; // Axios instance with token
 
@@ -80,9 +80,54 @@ const Input = styled.input`
   }
 `;
 
+// Search Container
+const SearchContainer = styled.div`
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 400px;
+`;
+
+// Search Input
+const SearchInput = styled(Input)`
+  flex: 1;
+  padding: 10px 12px 10px 40px;
+  font-size: 14px;
+`;
+
+// Search Icon Wrapper
+const SearchIconWrapper = styled.div`
+  position: relative;
+  flex: 1;
+  
+  svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: ${accentColor};
+    font-size: 16px;
+  }
+`;
+
+// Header Container
+const HeaderContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  
+  h2 {
+    margin: 0;
+    color: ${primaryColor};
+  }
+`;
 
 const VendorManagement = () => {
   const [vendors, setVendors] = useState([]);
+  const [filteredVendors, setFilteredVendors] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingVendor, setEditingVendor] = useState(null);
   const [form, setForm] = useState({});
 
@@ -94,6 +139,7 @@ const VendorManagement = () => {
       const res = await apiRequest(`${StoreTrustBaseUrl}get_vendors/`, "GET");
       if (res.status === 200 && res.data.status === "success") {
         setVendors(res.data.data);
+        setFilteredVendors(res.data.data);
       } else {
         console.error("Failed to fetch vendors", res.data);
       }
@@ -106,22 +152,33 @@ const VendorManagement = () => {
     fetchVendors();
   }, []);
 
-// ===== Delete Vendor =====
-const handleDelete = async (id) => {
-  if (!window.confirm("Are you sure you want to delete this vendor?")) return;
-  try {
-    await apiRequest(`${StoreTrustBaseUrl}delete_vendor/${id}/`, "PATCH");
+  // ===== Search Filter Effect =====
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredVendors(vendors);
+    } else {
+      const filtered = vendors.filter((vendor) =>
+        vendor.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredVendors(filtered);
+    }
+  }, [searchQuery, vendors]);
 
-    // Remove the deleted vendor from state immediately
-    setVendors((prevVendors) =>
-      prevVendors.filter((vendor) => (vendor._id || vendor.id) !== id)
-    );
+  // ===== Delete Vendor =====
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this vendor?")) return;
+    try {
+      await apiRequest(`${StoreTrustBaseUrl}delete_vendor/${id}/`, "PATCH");
 
-  } catch (err) {
-    console.error("Delete failed", err);
-  }
-};
+      // Remove the deleted vendor from state immediately
+      setVendors((prevVendors) =>
+        prevVendors.filter((vendor) => (vendor._id || vendor.id) !== id)
+      );
 
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  };
 
   // ===== Edit Vendor =====
   const handleEdit = (vendor) => {
@@ -132,10 +189,6 @@ const handleDelete = async (id) => {
   // ===== Save Edit =====
   const handleSave = async () => {
     try {
-      if (!form.name || !form.phone) {
-        alert("Name and Phone are required");
-        return;
-      }
       await apiRequest(
         `${StoreTrustBaseUrl}vendors/update/${editingVendor}/`,
         "PATCH",
@@ -156,13 +209,28 @@ const handleDelete = async (id) => {
 
   return (
     <div>
-      <h2 style={{ marginBottom: "20px" }}>Vendor Management</h2>
+      <HeaderContainer>
+        <h2>Vendor Management</h2>
+      </HeaderContainer>
+
+      {/* Search Filter */}
+      <SearchContainer>
+        <SearchIconWrapper>
+          <FiSearch />
+          <SearchInput
+            type="text"
+            placeholder="Search by Vendor Name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </SearchIconWrapper>
+      </SearchContainer>
 
       <Table>
         <thead>
           <tr>
-            <Th>Name</Th>
             <Th>Vendor ID</Th>
+            <Th>Name</Th>
             <Th>Contact</Th>
             <Th>Phone</Th>
             <Th>Email</Th>
@@ -183,18 +251,21 @@ const handleDelete = async (id) => {
           </tr>
         </thead>
         <tbody>
-          {vendors.length === 0 ? (
+          {filteredVendors.length === 0 ? (
             <tr>
-              <td colSpan={18} style={{ textAlign: "center" }}>
-                No vendors found
+              <td colSpan={19} style={{ textAlign: "center", padding: "20px" }}>
+                {searchQuery ? "No vendors found matching your search" : "No vendors found"}
               </td>
             </tr>
           ) : (
-            vendors.map((vendor) => {
+            filteredVendors.map((vendor) => {
               const id = vendor._id || vendor.id;
               const isEditing = editingVendor === id;
               return (
                 <tr key={id}>
+                  <Td>
+                    {vendor.vendor_id || "-"}
+                  </Td>
                   <Td>
                     {isEditing ? (
                       <Input
@@ -205,10 +276,6 @@ const handleDelete = async (id) => {
                       vendor.name || "-"
                     )}
                   </Td>
-<Td>
-  {vendor.vendor_id || "-"}
-</Td>
-
                   <Td>
                     {isEditing ? (
                       <Input
@@ -224,11 +291,11 @@ const handleDelete = async (id) => {
                   <Td>
                     {isEditing ? (
                       <Input
-                        value={form.Phone}
-                        onChange={(e) => handleChange("Phone", e.target.value)}
+                        value={form.phone}
+                        onChange={(e) => handleChange("phone", e.target.value)}
                       />
                     ) : (
-                      vendor.Phone || "-"
+                      vendor.phone || "-"
                     )}
                   </Td>
                   <Td>

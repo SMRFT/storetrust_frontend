@@ -4,6 +4,8 @@ import {
   Route,
   Routes,
 } from "react-router-dom";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import styled from "styled-components";
 import Sidebar from "./Components/Sidebar"; // Import your sidebar component
 import TravellersIN from "./Components/TravellersIN/TravellersIN";
@@ -52,7 +54,22 @@ const App = () => {
   }, []);
 
   return (
+    
     <AppContainer>
+            {/* Add ToastContainer once at the top level */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+
       <NotificationBell />
       <Sidebar />
       <ContentWrapper>

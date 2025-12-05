@@ -454,7 +454,7 @@ const handleEdit = (record) => {
                   <span>Vendor : ${record.vendor || "N/A"}</span>
                 </div>
                 <div class="row">
-                  <span>Date : ${record.date ? new Date(record.date).toLocaleDateString() : "N/A"}</span>
+                  <span>Date : ${formatDate(record.date)}</span>
                 </div>
                 <div class="row">
                   <span>Contact Person : ${record.contact_person || "N/A"}</span>
@@ -468,7 +468,7 @@ const handleEdit = (record) => {
                   <span>Invoice No : ${record.invoice_no || "N/A"}</span>
                 </div>
                 <div class="row">
-                  <span>Invoice Date : ${record.invoice_date ? new Date(record.invoice_date).toLocaleDateString() : "N/A"}</span>
+                  <span>Invoice Date : ${formatDate(record.invoice_date)}</span>
                 </div>
                 <div class="row">
                   <span>Payment Method : ${record.payment_details?.payment_method || record.payment_method || "N/A"}</span>
@@ -491,7 +491,7 @@ const handleEdit = (record) => {
                   <span>Total Amount : ₹${parseFloat(record.total_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div class="row">
-                  <span>Approved Date : ${record.date ? new Date(record.date).toLocaleDateString() : "N/A"}</span>
+                  <span>Approved Date : ${formatDate(record.date)}</span>
                 </div>
               </div>
             </div>
@@ -653,22 +653,61 @@ const exportToExcel = () => {
 const handlePrint = () => {
   const printWindow = window.open("", "", "width=800,height=600");
   
-  const tableRows = filteredData.map((row, index) => {
-    const [payment1] = formatPaymentHistory(row.payment_status);
-    return `
-      <tr>
-        <td style="white-space: nowrap;">${formatDate(row.date)}</td>
-        <td style="white-space: nowrap;">${row.grn_number || "N/A"}</td>
-        <td style="white-space: nowrap;">${row.vendor || "N/A"}</td>
-        <td style="white-space: nowrap;">${row.invoice_no || "N/A"}</td>
-        <td style="white-space: nowrap;">${formatCurrency(row.total_amount)}</td>
-        <td style="white-space: nowrap;">${row.payment_details?.status || "N/A"}</td>
-        <td>${payment1}</td>
-        <td style="white-space: nowrap;">${formatCurrency(row.total_amount_paid)}</td>
-        <td style="white-space: nowrap;">${formatCurrency(row.pending_amount)}</td>
-      </tr>
-    `;
-  }).join("");
+  // Sort data alphabetically by vendor name
+  const sortedData = [...filteredData].sort((a, b) => {
+    const vendorA = (a.vendor || "").toLowerCase();
+    const vendorB = (b.vendor || "").toLowerCase();
+    return vendorA.localeCompare(vendorB);
+  });
+
+  // Group by vendor and calculate grand total
+  const vendorGroups = {};
+  sortedData.forEach((row) => {
+    const vendor = row.vendor || "N/A";
+    if (!vendorGroups[vendor]) {
+      vendorGroups[vendor] = {
+        rows: [],
+        grandTotal: 0
+      };
+    }
+    vendorGroups[vendor].rows.push(row);
+    vendorGroups[vendor].grandTotal += parseFloat(row.pending_amount || 0);
+  });
+
+  let slNo = 1;
+  let tableRows = "";
+
+  Object.keys(vendorGroups).forEach((vendor) => {
+    const group = vendorGroups[vendor];
+    const rowCount = group.rows.length;
+    
+    group.rows.forEach((row, index) => {
+      const [payment1] = formatPaymentHistory(row.payment_status);
+      
+      tableRows += `
+        <tr>
+          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; text-align: center; vertical-align: middle; font-weight: bold;">${slNo}</td>` : ''}
+          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; vertical-align: middle; font-weight: bold;">${vendor}</td>` : ''}
+          <td style="white-space: nowrap;vertical-align: middle;">${formatDate(row.invoice_date)}</td>
+          <td style="white-space: nowrap;vertical-align: middle;">${row.grn_number || "N/A"}</td>
+          <td style="white-space: nowrap;vertical-align: middle; text-align: center;">${row.invoice_no || "N/A"}</td>
+          <td style="white-space: nowrap;vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount)}</td>
+          <td style="white-space: nowrap;vertical-align: middle; text-align: center;">${row.payment_details?.status || "N/A"}</td>
+          <td style="white-space: nowrap;vertical-align: middle; text-align: left;">${payment1}</td>
+          <td style="white-space: nowrap;vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount_paid)}</td>
+          <td style="white-space: nowrap; vertical-align: middle;text-align: right;">${formatCurrency(row.pending_amount)}</td>
+          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; text-align: right; vertical-align: middle; font-weight: bold; background-color: #fff3cd;">${formatCurrency(group.grandTotal)}</td>` : ''}
+        </tr>
+      `;
+    });
+    
+    slNo++;
+  });
+
+  // Get date range for title
+  const fromDate = filters.from_date ? formatDate(filters.from_date) : "N/A";
+  const toDate = filters.to_date ? formatDate(filters.to_date) : "N/A";
+  const dateRange = fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`;
 
   printWindow.document.write(`
     <html>
@@ -676,7 +715,7 @@ const handlePrint = () => {
         <title>${getCategoryTitle()}</title>
         <style>
           @page {
-            size: auto;
+            size: landscape;
             margin: 10mm;
           }
           
@@ -684,7 +723,7 @@ const handlePrint = () => {
             font-family: Arial, sans-serif; 
             margin: 0;
             padding: 10px;
-            font-size: 11px;
+            font-size: 10px;
           }
           
           h1 {
@@ -698,21 +737,22 @@ const handlePrint = () => {
             border-collapse: collapse; 
             width: 100%; 
             table-layout: auto;
-            font-size: 10px;
+            font-size: 9px;
           }
           
           th, td { 
-            border: 1px solid #ddd; 
+            border: 1px solid #333; 
             padding: 4px 6px; 
             text-align: left;
             vertical-align: top;
           }
           
           th { 
-            background-color: #f2f2f2; 
+            background-color: #e0e0e0; 
             font-weight: bold;
-            font-size: 10px;
+            font-size: 9px;
             word-wrap: break-word;
+            text-align: center;
           }
           
           td {
@@ -723,10 +763,10 @@ const handlePrint = () => {
           /* Landscape specific adjustments */
           @media print and (orientation: landscape) {
             body {
-              font-size: 10px;
+              font-size: 9px;
             }
             table {
-              font-size: 9px;
+              font-size: 8px;
             }
             th, td {
               padding: 3px 4px;
@@ -736,10 +776,10 @@ const handlePrint = () => {
           /* Portrait specific adjustments */
           @media print and (orientation: portrait) {
             body {
-              font-size: 9px;
+              font-size: 8px;
             }
             table {
-              font-size: 8px;
+              font-size: 7px;
             }
             th, td {
               padding: 2px 3px;
@@ -768,19 +808,21 @@ const handlePrint = () => {
         </style>
       </head>
       <body>
-        <h1>${getCategoryTitle()}</h1>
+        <h1>${getCategoryTitle()} (${dateRange})</h1>
         <table>
           <thead>
             <tr>
-              <th style="white-space: nowrap;">Date</th>
-              <th style="white-space: nowrap;">GRN Number</th>
+              <th style="white-space: nowrap;">Sl. No</th>
               <th style="white-space: nowrap;">Vendor</th>
+              <th style="white-space: nowrap;">Inv.Date</th>
+              <th style="white-space: nowrap;">GRN Number</th>
               <th style="white-space: nowrap;">Invoice No</th>
-              <th style="white-space: nowrap;">Total Amount</th>
+              <th style="white-space: nowrap; text-align: right;">Total Amount</th>
               <th style="white-space: nowrap;">Payment Status</th>
-              <th style="white-space: nowrap;">Advance</th>
-              <th style="white-space: nowrap;">Amount Paid</th>
-              <th style="white-space: nowrap;">Pending Amount</th>
+              <th style="white-space: nowrap; ">Advance (₹)</th>
+              <th style="white-space: nowrap; ">Amount Paid</th>
+              <th style="white-space: nowrap; ">Pending Amount</th>
+              <th style="white-space: nowrap; ">Grand Total</th>
             </tr>
           </thead>
           <tbody>

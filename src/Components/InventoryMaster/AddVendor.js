@@ -115,79 +115,84 @@ const AddVendor = () => {
       addressLine1: "Address Line 1",
       gstin: "GSTIN",
     };
-
+    
     const missingFields = [];
     for (const [field, label] of Object.entries(requiredFields)) {
       if (!formData[field] || formData[field].trim() === "") {
         missingFields.push(label);
       }
     }
-
+    
     if (missingFields.length > 0) {
       toast.error(
         `Please fill in the following required fields: ${missingFields.join(", ")}`
       );
       return;
     }
-
+    
     const submitData = {
       ...formData,
     };
-
+    
     console.log("Submitting vendor data:", submitData);
-
+    
     const result = await apiRequest(
       `${StoreTrustbaseurl}vendors/`,
       "POST",
       submitData
     );
-
+    
     console.log("Full API Response:", result); // Debug log
-
-    // SUCCESS CASE (status 201 or 200)
-    if (result.success) {
-      toast.success("Vendor added successfully!");
-      setTimeout(() => {
-        navigate(-1);
-      }, 1000); // Small delay to show the toast
-      return;
-    }
-
-    // ERROR CASE
+    
+    // ✅ CHECK FOR ERRORS FIRST (before checking success)
     // For 400 Bad Request - Django serializer validation errors
-    if (result.status === 400 && result.data) {
-      console.log("Validation errors:", result.data); // Debug log
+    if (result.status === 400) {
+      console.log("Validation errors:", result.data);
       
-      const errorMessages = [];
-      
-      // Django serializer.errors format: { field_name: ["error message"] }
-      for (const [field, messages] of Object.entries(result.data)) {
-        if (Array.isArray(messages)) {
-          errorMessages.push(`${field}: ${messages.join(", ")}`);
-        } else if (typeof messages === 'string') {
-          errorMessages.push(`${field}: ${messages}`);
+      if (result.data) {
+        const errorMessages = [];
+        
+        // Django serializer.errors format: { field_name: ["error message"] }
+        for (const [field, messages] of Object.entries(result.data)) {
+          if (Array.isArray(messages)) {
+            // ✅ FIXED: Added parentheses around template literal
+            errorMessages.push(`${field}: ${messages.join(", ")}`);
+          } else if (typeof messages === 'string') {
+            // ✅ FIXED: Added parentheses around template literal
+            errorMessages.push(`${field}: ${messages}`);
+          }
         }
-      }
-      
-      if (errorMessages.length > 0) {
-        // Show each error as a separate toast or combined
-        const combinedError = errorMessages.join("\n");
-        toast.error(combinedError);
+        
+        if (errorMessages.length > 0) {
+          const combinedError = errorMessages.join("\n");
+          toast.error(combinedError);
+        } else {
+          toast.error("Validation failed. Please check your input.");
+        }
       } else {
         toast.error("Validation failed. Please check your input.");
       }
       return;
     }
-
+    
     // For 500 errors or other errors with 'error' field
-    if (result.error) {
-      toast.error(result.error);
+    if (result.error || !result.success) {
+      toast.error(result.error || "Failed to add vendor. Please try again.");
       return;
     }
-
+    
+    // ✅ SUCCESS CASE - Only reached if no errors above
+    if (result.success && (result.status === 201 || result.status === 200)) {
+      toast.success("Vendor added successfully!");
+      setTimeout(() => {
+        navigate(-1);
+      }, 1000);
+      return;
+    }
+    
     // Generic fallback error
     toast.error("Failed to add vendor. Please try again.");
-
+    
   } catch (error) {
     console.error("Unexpected submit error:", error);
     toast.error("An unexpected error occurred. Please try again.");

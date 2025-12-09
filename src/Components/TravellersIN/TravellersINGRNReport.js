@@ -93,18 +93,20 @@ const GRNReport = () => {
     }
   };
   // Payment Modal Handlers
-  const handleOpenPaymentModal = (record) => {
-    setPaymentDetails({
-      grn_number: record.grn_number,
-      amount_paid: "",
-      payment_method: "",
-      payment_details: "",
-      pending_amount: parseFloat(record.pending_amount || record.total_amount || 0),
-    });
-    setSelectedRecord(record);
-    setShowPaymentModal(true);
-    setIsPaymentDirty(false); // Reset dirty state
-  };
+const handleOpenPaymentModal = (record) => {
+  setPaymentDetails({
+    grn_number: record.grn_number,
+    amount_paid: "",
+    payment_method: "",
+    payment_details: "",
+    payment_date: new Date().toISOString().split("T")[0], // Default to today
+    pending_amount: parseFloat(record.pending_amount || record.total_amount || 0),
+  });
+  setSelectedRecord(record);
+  setShowPaymentModal(true);
+  setIsPaymentDirty(false);
+};
+
 
   const handlePaymentChange = (key, value) => {
     setPaymentDetails((prev) => {
@@ -118,8 +120,15 @@ const GRNReport = () => {
     setIsPaymentDirty(true); // Mark as dirty on change
   };
 
+const convertToDateFormat = (dateStr) => {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+};
+
 const handlePaymentSubmit = async (e) => {
   e.preventDefault();
+  
   if (!paymentDetails.amount_paid || parseFloat(paymentDetails.amount_paid) <= 0) {
     toast.error("Please enter a valid payment amount");
     return;
@@ -128,8 +137,12 @@ const handlePaymentSubmit = async (e) => {
     toast.error("Please select a payment method");
     return;
   }
+  if (!paymentDetails.payment_date) {
+    toast.error("Please select a payment date");
+    return;
+  }
   if (["UPI", "Cheque"].includes(paymentDetails.payment_method) && !paymentDetails.payment_details) {
-    toast.error(`Please provide payment details (e.g., transaction ID or cheque number) for ${paymentDetails.payment_method}`);
+    toast.error(`Please provide payment details for ${paymentDetails.payment_method}`);
     return;
   }
   if (parseFloat(paymentDetails.amount_paid) > parseFloat(selectedRecord.pending_amount || selectedRecord.total_amount)) {
@@ -139,20 +152,17 @@ const handlePaymentSubmit = async (e) => {
 
   try {
     const encodedGrnNumber = encodeURIComponent(paymentDetails.grn_number);
-    const currentUser = localStorage.getItem('username') || localStorage.getItem('user') || localStorage.getItem('name') || 'Unknown User';
-const totalPaid = (parseFloat(selectedRecord.total_amount_paid) || 0) + (parseFloat(paymentDetails.amount_paid) || 0);
+    const totalPaid = (parseFloat(selectedRecord.total_amount_paid) || 0) + (parseFloat(paymentDetails.amount_paid) || 0);
+    const pendingAmount = parseFloat(selectedRecord.total_amount) - totalPaid;
 
-const pendingAmount = parseFloat(selectedRecord.total_amount) - totalPaid;
-
-const payload = {
-  amount_paid: parseFloat(paymentDetails.amount_paid),
-  payment_method: paymentDetails.payment_method,
-  payment_details: paymentDetails.payment_method === "Cash" ? null : paymentDetails.payment_details,
-  status: pendingAmount <= 0 ? "Paid" : "Partially Paid",
-  paid_by: currentUser,
-  pending_amount: pendingAmount,
-};
-
+    const payload = {
+      amount_paid: parseFloat(paymentDetails.amount_paid),
+      payment_method: paymentDetails.payment_method,
+      payment_details: paymentDetails.payment_method === "Cash" ? null : paymentDetails.payment_details,
+      payment_date: convertToDateFormat(paymentDetails.payment_date), // Convert to dd/mm/yyyy format
+      status: pendingAmount <= 0 ? "Paid" : "Partially Paid",
+      pending_amount: pendingAmount,
+    };
 
     const response = await apiRequest(
       `${StoreTrustbaseurl}travellers-in/update-payment-status/?grn_number=${encodedGrnNumber}`,
@@ -164,15 +174,15 @@ const payload = {
       toast.success("Payment updated successfully");
       setShowPaymentModal(false);
       setIsPaymentDirty(false);
-        fetchAllData();
-      } else {
-        toast.error(response.error || response.data?.message || "Failed to update payment");
-      }
-    } catch (error) {
-      console.error("Error updating payment:", error);
-      toast.error("Network error while updating payment");
+      fetchAllData();
+    } else {
+      toast.error(response.error || response.data?.message || "Failed to update payment");
     }
-  };
+  } catch (error) {
+    console.error("Error updating payment:", error);
+    toast.error("Network error while updating payment");
+  }
+};
 
   const handleClosePaymentModal = () => {
     if (isPaymentDirty && !window.confirm("You have unsaved changes. Are you sure you want to close?")) {
@@ -188,11 +198,11 @@ const formatPaymentHistory = (paymentStatus) => {
   }
   // Filter valid payments (with valid timestamp) and take the last 3
   const validPayments = paymentStatus
-    .filter((payment) => payment.timestamp && new Date(payment.timestamp).toString() !== "Invalid Date")
+    .filter((payment) => payment.payment_date)
     .slice(-3); // Get the last 3 valid entries
   // Format payments
 const formattedPayments = validPayments.map((payment) => {
-    const date = new Date(payment.timestamp).toISOString().split("T")[0]; // e.g., 2025-08-26
+    const date = payment.payment_date; // e.g., 2025-08-26
     const amount = formatCurrency(payment.amount_paid);
     const method = payment.payment_method || "N/A"; // Fallback if payment_method is missing
     return `Date: ${date}<br />Paid: ${amount}<br />Method: ${method}`;
@@ -622,18 +632,24 @@ const exportToExcel = () => {
   const csvContent = [
     headers.join(","),
     ...filteredData.map((row) => {
-      const [payment1] = formatPaymentHistory(row.payment_status);
-      // Remove HTML tags from payment1
-      const cleanPayment1 = payment1.replace(/<br\s*\/?>/gi, ' | ').replace(/<\/?[^>]+(>|$)/g, "");
+      // Get the last payment entry and format it properly
+      let advanceText = "N/A";
+      if (Array.isArray(row.payment_status) && row.payment_status.length > 0) {
+        const lastPayment = row.payment_status[row.payment_status.length - 1];
+        const paymentDate = lastPayment.payment_date || "N/A";
+        const paymentAmount = parseFloat(lastPayment.amount_paid || 0).toFixed(2);
+        const paymentMethod = lastPayment.payment_method || "N/A";
+        advanceText = `Date: ${paymentDate} | Paid: ${paymentAmount} | Method: ${paymentMethod}`;
+      }
       
       return [
-        formatDate(row.date), // Now returns dd/mm/yyyy
+        formatDate(row.date),
         row.grn_number,
         row.vendor,
         row.invoice_no,
         parseFloat(row.total_amount || 0).toFixed(2),
         row.payment_details?.status || row.payment_status || "N/A",
-        cleanPayment1,
+        advanceText,
         parseFloat(row.total_amount_paid || 0).toFixed(2),
         parseFloat(row.pending_amount || 0).toFixed(2),
       ].join(",");
@@ -662,6 +678,7 @@ const handlePrint = () => {
 
   // Group by vendor and calculate grand total
   const vendorGroups = {};
+  let overallGrandTotal = 0;
   sortedData.forEach((row) => {
     const vendor = row.vendor || "N/A";
     if (!vendorGroups[vendor]) {
@@ -671,7 +688,9 @@ const handlePrint = () => {
       };
     }
     vendorGroups[vendor].rows.push(row);
-    vendorGroups[vendor].grandTotal += parseFloat(row.pending_amount || 0);
+    const pendingAmount = parseFloat(row.pending_amount || 0);
+    vendorGroups[vendor].grandTotal += pendingAmount;
+    overallGrandTotal += pendingAmount;
   });
 
   let slNo = 1;
@@ -687,9 +706,9 @@ const handlePrint = () => {
       tableRows += `
         <tr>
           ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; text-align: center; vertical-align: middle; font-weight: bold;">${slNo}</td>` : ''}
-          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; vertical-align: middle; font-weight: bold;">${vendor}</td>` : ''}
-          <td style="white-space: nowrap;vertical-align: middle;">${formatDate(row.invoice_date)}</td>
-          <td style="white-space: nowrap;vertical-align: middle;">${row.grn_number || "N/A"}</td>
+          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; vertical-align: middle; font-weight: bold; overflow: hidden; text-overflow: ellipsis;">${vendor}</td>` : ''}
+          <td style="white-space: nowrap;vertical-align: middle;text-align: center;">${formatDate(row.invoice_date)}</td>
+          <td style="white-space: nowrap;vertical-align: middle;text-align: center;">${row.grn_number || "N/A"}</td>
           <td style="white-space: nowrap;vertical-align: middle; text-align: center;">${row.invoice_no || "N/A"}</td>
           <td style="white-space: nowrap;vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount)}</td>
           <td style="white-space: nowrap;vertical-align: middle; text-align: center;">${row.payment_details?.status || "N/A"}</td>
@@ -723,12 +742,12 @@ const handlePrint = () => {
             font-family: Arial, sans-serif; 
             margin: 0;
             padding: 10px;
-            font-size: 10px;
+            font-size: 14px;
           }
           
           h1 {
             text-align: center;
-            font-size: 16px;
+            font-size: 18px;
             margin: 10px 0;
             word-wrap: break-word;
           }
@@ -737,7 +756,7 @@ const handlePrint = () => {
             border-collapse: collapse; 
             width: 100%; 
             table-layout: auto;
-            font-size: 9px;
+            font-size: 13px;
           }
           
           th, td { 
@@ -750,9 +769,10 @@ const handlePrint = () => {
           th { 
             background-color: #e0e0e0; 
             font-weight: bold;
-            font-size: 9px;
+            font-size: 13px;
             word-wrap: break-word;
             text-align: center;
+            max-width: 80px;
           }
           
           td {
@@ -763,10 +783,10 @@ const handlePrint = () => {
           /* Landscape specific adjustments */
           @media print and (orientation: landscape) {
             body {
-              font-size: 9px;
+              font-size: 13px;
             }
             table {
-              font-size: 8px;
+              font-size: 12px;
             }
             th, td {
               padding: 3px 4px;
@@ -776,16 +796,16 @@ const handlePrint = () => {
           /* Portrait specific adjustments */
           @media print and (orientation: portrait) {
             body {
-              font-size: 8px;
+              font-size: 12px;
             }
             table {
-              font-size: 7px;
+              font-size: 11px;
             }
             th, td {
               padding: 2px 3px;
             }
             h1 {
-              font-size: 14px;
+              font-size: 16px;
             }
           }
           
@@ -814,19 +834,23 @@ const handlePrint = () => {
             <tr>
               <th style="white-space: nowrap;">Sl. No</th>
               <th style="white-space: nowrap;">Vendor</th>
-              <th style="white-space: nowrap;">Inv.Date</th>
-              <th style="white-space: nowrap;">GRN Number</th>
-              <th style="white-space: nowrap;">Invoice No</th>
-              <th style="white-space: nowrap; text-align: right;">Total Amount</th>
-              <th style="white-space: nowrap;">Payment Status</th>
-              <th style="white-space: nowrap; ">Advance (₹)</th>
-              <th style="white-space: nowrap; ">Amount Paid</th>
-              <th style="white-space: nowrap; ">Pending Amount</th>
-              <th style="white-space: nowrap; ">Grand Total</th>
+              <th>Inv.Date</th>
+              <th>GRN Number</th>
+              <th>Invoice No</th>
+              <th style="text-align: right;">Total Amount</th>
+              <th>Payment Status</th>
+              <th>Advance (₹)</th>
+              <th>Amount Paid</th>
+              <th>Pending Amount</th>
+              <th>Grand Total</th>
             </tr>
           </thead>
           <tbody>
             ${tableRows}
+            <tr style="background-color: #d4edda; font-weight: bold;">
+              <td colspan="10" style="text-align: right; padding: 8px; font-size: 14px;">Gross Total:</td>
+              <td style="text-align: right; padding: 8px; font-size: 14px;">${formatCurrency(overallGrandTotal)}</td>
+            </tr>
           </tbody>
         </table>
       </body>
@@ -1402,90 +1426,100 @@ const handlePrint = () => {
 
 
       {showPaymentModal && (
-        <PaymentModalOverlay onClick={handleClosePaymentModal}>
-          <PaymentModalContent onClick={(e) => e.stopPropagation()}>
-            <PaymentModalHeader>
-              <PaymentModalTitle>Update Payment - {paymentDetails.grn_number}</PaymentModalTitle>
-              <CustomButton variant="cancel" onClick={handleClosePaymentModal}>
-                <X size={20} />
-              </CustomButton>
-            </PaymentModalHeader>
-            <PaymentForm onSubmit={handlePaymentSubmit}>
-              <PaymentInputWrapper>
-                <PaymentLabel>Amount Paid</PaymentLabel>
-                <PaymentInput
-                  type="number"
-                  value={paymentDetails.amount_paid}
-                  onChange={(e) => handlePaymentChange("amount_paid", e.target.value)}
-                  placeholder="Enter amount"
-                  min="0"
-                                    step="0.01"
-                  required
-                />
-              </PaymentInputWrapper>
-              <PaymentInputWrapper>
-                <PaymentLabel>Payment Method</PaymentLabel>
-                <PaymentSelect
-                  value={paymentDetails.payment_method}
-                  onChange={(e) => handlePaymentChange("payment_method", e.target.value)}
-                  required
-                >
-                  <option value="">Select Payment Method</option>
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                </PaymentSelect>
-              </PaymentInputWrapper>
-              {["UPI", "Cheque", "Bank Transfer"].includes(paymentDetails.payment_method) && (
-                <PaymentInputWrapper>
-                  <PaymentLabel>
-                    {paymentDetails.payment_method === "UPI"
-                      ? "UPI Transaction ID"
-                      : paymentDetails.payment_method === "Cheque"
-                      ? "Cheque Number"
-                      : "Transaction Details"}
-                  </PaymentLabel>
-                  <PaymentInput
-                    type="text"
-                    value={paymentDetails.payment_details}
-                    onChange={(e) => handlePaymentChange("payment_details", e.target.value)}
-                    placeholder={`Enter ${
-                      paymentDetails.payment_method === "UPI"
-                        ? "UPI Transaction ID"
-                        : paymentDetails.payment_method === "Cheque"
-                        ? "Cheque Number"
-                        : "Transaction Details"
-                    }`}
-                    required
-                  />
-                </PaymentInputWrapper>
-              )}
-              <PaymentInputWrapper>
-                <PaymentLabel>Pending Amount</PaymentLabel>
-                <PaymentInput
-                  type="number"
-                  value={paymentDetails.pending_amount.toFixed(2)}
-                  readOnly
-                  style={{ backgroundColor: "#f1f5f9", cursor: "not-allowed" }}
-                />
-              </PaymentInputWrapper>
-              <PaymentButtonContainer>
-                <CustomButton variant="cancel" onClick={handleClosePaymentModal}>
-                  Cancel
-                </CustomButton>
-                <CustomButton
-                  variant="primary"
-                  type="submit"
-                  disabled={!isPaymentDirty || !paymentDetails.amount_paid || !paymentDetails.payment_method}
-                >
-                  Submit Payment
-                </CustomButton>
-              </PaymentButtonContainer>
-            </PaymentForm>
-          </PaymentModalContent>
-        </PaymentModalOverlay>
-      )}
+  <PaymentModalOverlay onClick={handleClosePaymentModal}>
+    <PaymentModalContent onClick={(e) => e.stopPropagation()}>
+      <PaymentModalHeader>
+        <PaymentModalTitle>Update Payment - {paymentDetails.grn_number}</PaymentModalTitle>
+        <CustomButton variant="cancel" onClick={handleClosePaymentModal}>
+          <X size={20} />
+        </CustomButton>
+      </PaymentModalHeader>
+      <PaymentForm onSubmit={handlePaymentSubmit}>
+        <PaymentInputWrapper>
+          <PaymentLabel>Payment Date *</PaymentLabel>
+          <PaymentInput
+            type="date"
+            value={paymentDetails.payment_date}
+            onChange={(e) => handlePaymentChange("payment_date", e.target.value)}
+            max={new Date().toISOString().split("T")[0]}
+            required
+          />
+        </PaymentInputWrapper>
+        <PaymentInputWrapper>
+          <PaymentLabel>Amount Paid *</PaymentLabel>
+          <PaymentInput
+            type="number"
+            value={paymentDetails.amount_paid}
+            onChange={(e) => handlePaymentChange("amount_paid", e.target.value)}
+            placeholder="Enter amount"
+            min="0"
+            step="0.01"
+            required
+          />
+        </PaymentInputWrapper>
+        <PaymentInputWrapper>
+          <PaymentLabel>Payment Method *</PaymentLabel>
+          <PaymentSelect
+            value={paymentDetails.payment_method}
+            onChange={(e) => handlePaymentChange("payment_method", e.target.value)}
+            required
+          >
+            <option value="">Select Payment Method</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </PaymentSelect>
+        </PaymentInputWrapper>
+        {["UPI", "Cheque", "Bank Transfer"].includes(paymentDetails.payment_method) && (
+          <PaymentInputWrapper>
+            <PaymentLabel>
+              {paymentDetails.payment_method === "UPI"
+                ? "UPI Transaction ID *"
+                : paymentDetails.payment_method === "Cheque"
+                ? "Cheque Number *"
+                : "Transaction Details *"}
+            </PaymentLabel>
+            <PaymentInput
+              type="text"
+              value={paymentDetails.payment_details}
+              onChange={(e) => handlePaymentChange("payment_details", e.target.value)}
+              placeholder={`Enter ${
+                paymentDetails.payment_method === "UPI"
+                  ? "UPI Transaction ID"
+                  : paymentDetails.payment_method === "Cheque"
+                  ? "Cheque Number"
+                  : "Transaction Details"
+              }`}
+              required
+            />
+          </PaymentInputWrapper>
+        )}
+        <PaymentInputWrapper>
+          <PaymentLabel>Pending Amount</PaymentLabel>
+          <PaymentInput
+            type="number"
+            value={paymentDetails.pending_amount.toFixed(2)}
+            readOnly
+            style={{ backgroundColor: "#f1f5f9", cursor: "not-allowed" }}
+          />
+        </PaymentInputWrapper>
+        <PaymentButtonContainer>
+          <CustomButton variant="cancel" onClick={handleClosePaymentModal}>
+            Cancel
+          </CustomButton>
+          <CustomButton
+            variant="primary"
+            type="submit"
+            disabled={!isPaymentDirty || !paymentDetails.amount_paid || !paymentDetails.payment_method || !paymentDetails.payment_date}
+          >
+            Submit Payment
+          </CustomButton>
+        </PaymentButtonContainer>
+      </PaymentForm>
+    </PaymentModalContent>
+  </PaymentModalOverlay>
+)}
             {showModal && selectedRecord && (
         <EnhancedViewModal
           showModal={showModal}

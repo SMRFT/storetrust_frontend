@@ -315,14 +315,14 @@ const activeRecords = response.data.data.filter(
     }
     if (filters.from_date) {
       filtered = filtered.filter((item) => {
-        const itemDate = new Date(item.date);
+        const itemDate = new Date(item.invoice_date);
         const fromDate = new Date(filters.from_date);
         return itemDate >= fromDate;
       });
     }
     if (filters.to_date) {
       filtered = filtered.filter((item) => {
-        const itemDate = new Date(item.date);
+        const itemDate = new Date(item.invoice_date);
         const toDate = new Date(filters.to_date);
         return itemDate <= toDate;
       });
@@ -693,7 +693,6 @@ const handlePrint = () => {
     overallGrandTotal += pendingAmount;
   });
 
-  let slNo = 1;
   let tableRows = "";
 
   Object.keys(vendorGroups).forEach((vendor) => {
@@ -707,26 +706,25 @@ const handlePrint = () => {
       return grnA.localeCompare(grnB);
     });
     
-    // Vendor header row
+    // Vendor header row (merged with Sl.No column)
     tableRows += `
-      <tr style="background-color: #f0f0f0;">
-        <td style="font-weight: bold; text-align: center; vertical-align: middle;">${slNo}</td>
-        <td colspan="8" style="font-weight: bold; vertical-align: middle; padding: 8px;">${vendor}</td>
+      <tr style="background-color: #f0f0f0;" class="vendor-row">
+        <td colspan="9" style="font-weight: bold; vertical-align: middle; padding: 8px;">${vendor}</td>
         <td rowspan="${rowCount + 1}" style="font-weight: bold; text-align: right; vertical-align: middle; background-color: #fff3cd;">${formatCurrency(group.grandTotal)}</td>
       </tr>
     `;
     
-    // Detail rows for each GRN
-    group.rows.forEach((row, index) => {
+    // Detail rows for each GRN - reset slNo to 1 for each vendor
+    let slNo = 1;
+    group.rows.forEach((row) => {
       const [payment1] = formatPaymentHistory(row.payment_status);
-      const subSerialNo = `${slNo}.${index + 1}`;
       
       tableRows += `
-        <tr>
-          <td style="white-space: nowrap; text-align: center; vertical-align: middle; padding-left: 15px;">${subSerialNo}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${formatDate(row.invoice_date)}</td>
+        <tr class="grn-row">
+          <td style="white-space: nowrap; text-align: center; vertical-align: middle;">${slNo}</td>
           <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.grn_number || "N/A"}</td>
           <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.invoice_no || "N/A"}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${formatDate(row.invoice_date)}</td>
           <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount)}</td>
           <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.payment_details?.status || "N/A"}</td>
           <td style="white-space: nowrap; vertical-align: middle; text-align: left;">${payment1}</td>
@@ -734,9 +732,8 @@ const handlePrint = () => {
           <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.pending_amount)}</td>
         </tr>
       `;
+      slNo++; // Increment for each GRN row within this vendor
     });
-    
-    slNo++;
   });
 
   // Get date range for title
@@ -773,13 +770,41 @@ const handlePrint = () => {
             width: 100%; 
             table-layout: auto;
             font-size: 13px;
+            /* Solid border for table outline */
+            border: 1px solid #333;
           }
           
           th, td { 
-            border: 1px solid #333; 
+            /* All internal borders are dashed */
+            border-left: 1px dashed #999;
+            border-right: 1px dashed #999;
+            border-top: 1px dashed #999;
+            border-bottom: 1px dashed #999;
             padding: 8px 10px; 
             text-align: left;
             vertical-align: top;
+          }
+          
+          /* Remove left border from first cell to avoid double border with table outline */
+          tr td:first-child,
+          tr th:first-child {
+            border-left: none;
+          }
+          
+          /* Remove right border from last cell to avoid double border with table outline */
+          tr td:last-child,
+          tr th:last-child {
+            border-right: none;
+          }
+          
+          /* Remove top border from first row to avoid double border with table outline */
+          thead tr:first-child th {
+            border-top: none;
+          }
+          
+          /* Remove bottom border from last row to avoid double border with table outline */
+          tbody tr:last-child td {
+            border-bottom: none;
           }
           
           th { 
@@ -849,10 +874,10 @@ const handlePrint = () => {
           <thead>
             <tr>
               <th style="white-space: nowrap;">Sl. No</th>
-              <th>Inv.Date</th>
               <th>GRN Number</th>
               <th>Invoice No</th>
-              <th style="text-align: right;">Total Amount</th>
+              <th>Inv.Date</th>
+              <th >Bill Amount</th>
               <th>Payment Status</th>
               <th>Advance (₹)</th>
               <th>Amount Paid</th>
@@ -1328,6 +1353,7 @@ const handlePrint = () => {
         <Th style={{whiteSpace:"nowrap"}}>GRN Number</Th>
         <Th style={{whiteSpace:"nowrap"}}>Purchase Category</Th>
         <Th style={{whiteSpace:"nowrap"}}>Vendor</Th>
+        <Th style={{whiteSpace:"nowrap"}}>Invoice Date</Th>
         <Th style={{whiteSpace:"nowrap"}}>Invoice No</Th>
         <Th style={{whiteSpace:"nowrap"}}>Total Amount</Th>
         <Th style={{whiteSpace:"nowrap"}}>Payment Status</Th>
@@ -1353,6 +1379,7 @@ const handlePrint = () => {
               <Td>{row.grn_number || "N/A"}</Td>
               <Td>{row.purchase_category || "N/A"}</Td>
               <Td>{row.vendor || "N/A"}</Td>
+              <Td>{formatDate(row.invoice_date)}</Td>
               <Td>{row.invoice_no || "N/A"}</Td>
               <Td>{formatCurrency(row.total_amount)}</Td>
               <Td style={{whiteSpace:"nowrap"}}>

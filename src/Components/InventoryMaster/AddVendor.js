@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import  { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Save, X } from "lucide-react";
 import { toast } from "react-toastify";
@@ -11,6 +11,10 @@ import{
 
 const AddVendor = () => {
   const navigate = useNavigate();
+  const [states, setStates] = useState([])
+  const [cities, setCities] = useState([])
+  const [loadingStates, setLoadingStates] = useState(true)
+  const [loadingCities, setLoadingCities] = useState(false)
   const [formData, setFormData] = useState({
     supplierType: "",
     name: "",
@@ -33,69 +37,167 @@ const AddVendor = () => {
   });
 
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
+    useEffect(() => {
+    const fetchStates = async () => {
+      try {
+        const res = await fetch("https://countriesnow.space/api/v0.1/countries/states", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ country: "India" }),
+        })
 
-  const handleInputChange = (e) => {
+        const data = await res.json()
+
+        setStates(data.data.states)  // states = [{name: "..."}]
+        setLoadingStates(false)
+      } catch (error) {
+        toast.error("Failed to load states")
+        setLoadingStates(false)
+      }
+    }
+    fetchStates()
+  }, [])
+
+  // -----------------------------
+  // GENERIC INPUT CHANGE
+  // -----------------------------
+ 
+   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async () => {
+  // -----------------------------
+  // ✅ STATE CHANGE → LOAD CITIES
+  // -----------------------------
+  const handleStateChange = async (e) => {
+    const stateName = e.target.value
+
+    setFormData((prev) => ({ ...prev, state: stateName, city: "" }))
+    setCities([])
+
+    if (!stateName) return
+
+    setLoadingCities(true)
+
     try {
-      // Validate required fields
-      const requiredFields = {
-        supplierType: "Supplier / Manufacturer",
-        name: "Name",
-        addressLine1: "Address Line 1",
-        gstin: "GSTIN",
-      };
+      const res = await fetch("https://countriesnow.space/api/v0.1/countries/state/cities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          country: "India",
+          state: stateName,
+        }),
+      })
 
-      const missingFields = [];
-      for (const [field, label] of Object.entries(requiredFields)) {
-        if (!formData[field] || formData[field].trim() === "") {
-          missingFields.push(label);
-        }
-      }
-
-      if (missingFields.length > 0) {
-        toast.error(
-          `Please fill in the following required fields: ${missingFields.join(
-            ", "
-          )}`
-        );
-        return;
-      }
-
-      const submitData = {
-        ...formData,
-      };
-
-      console.log("Submitting vendor data:", submitData);
-
-      const result = await apiRequest(
-        `${StoreTrustbaseurl}vendors/`,
-        "POST",
-        submitData
-      );
-
-      if (result.success) {
-        toast.success("Vendor added successfully!");
-        navigate(-1); // Go back to previous page
-      } else {
-        if (result.data?.errors) {
-          const errorMessages = [];
-          for (const [field, messages] of Object.entries(result.data.errors)) {
-            errorMessages.push(`${field}: ${messages.join(", ")}`);
-          }
-          toast.error(`Validation errors:\n${errorMessages.join("\n")}`);
-        } else {
-          toast.error(result.error || "Unknown error occurred");
-        }
-      }
+      const data = await res.json()
+      setCities(data.data || [])
     } catch (error) {
-      console.error("Submit error:", error);
-      toast.error("An unexpected error occurred. Please try again.");
+      toast.error("Failed to load cities")
     }
-  };
+
+    setLoadingCities(false)
+  }
+
+  const handleCityChange = (e) => {
+    setFormData((prev) => ({ ...prev, city: e.target.value }))
+  }
+
+
+ 
+
+ const handleSubmit = async () => {
+  try {
+    // Validate required fields
+    const requiredFields = {
+      supplierType: "Supplier / Manufacturer",
+      name: "Name",
+      addressLine1: "Address Line 1",
+      gstin: "GSTIN",
+    };
+    
+    const missingFields = [];
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (!formData[field] || formData[field].trim() === "") {
+        missingFields.push(label);
+      }
+    }
+    
+    if (missingFields.length > 0) {
+      toast.error(
+        `Please fill in the following required fields: ${missingFields.join(", ")}`
+      );
+      return;
+    }
+    
+    const submitData = {
+      ...formData,
+    };
+    
+    console.log("Submitting vendor data:", submitData);
+    
+    const result = await apiRequest(
+      `${StoreTrustbaseurl}vendors/`,
+      "POST",
+      submitData
+    );
+    
+    console.log("Full API Response:", result); // Debug log
+    
+    // ✅ CHECK FOR ERRORS FIRST (before checking success)
+    // For 400 Bad Request - Django serializer validation errors
+    if (result.status === 400) {
+      console.log("Validation errors:", result.data);
+      
+      if (result.data) {
+        const errorMessages = [];
+        
+        // Django serializer.errors format: { field_name: ["error message"] }
+        for (const [field, messages] of Object.entries(result.data)) {
+          if (Array.isArray(messages)) {
+            // ✅ FIXED: Added parentheses around template literal
+            errorMessages.push(`${field}: ${messages.join(", ")}`);
+          } else if (typeof messages === 'string') {
+            // ✅ FIXED: Added parentheses around template literal
+            errorMessages.push(`${field}: ${messages}`);
+          }
+        }
+        
+        if (errorMessages.length > 0) {
+          const combinedError = errorMessages.join("\n");
+          toast.error(combinedError);
+        } else {
+          toast.error("Validation failed. Please check your input.");
+        }
+      } else {
+        toast.error("Validation failed. Please check your input.");
+      }
+      return;
+    }
+    
+    // For 500 errors or other errors with 'error' field
+    if (result.error || !result.success) {
+      toast.error(result.error || "Failed to add vendor. Please try again.");
+      return;
+    }
+    
+    // ✅ SUCCESS CASE - Only reached if no errors above
+    if (result.success && (result.status === 201 || result.status === 200)) {
+      toast.success("Vendor added successfully!");
+      setTimeout(() => {
+        navigate(-1);
+      }, 1000);
+      return;
+    }
+    
+    // Generic fallback error
+    toast.error("Failed to add vendor. Please try again.");
+    
+  } catch (error) {
+    console.error("Unexpected submit error:", error);
+    toast.error("An unexpected error occurred. Please try again.");
+  }
+};
 
   const handleCancel = () => {
     navigate(-1); // Go back to previous page
@@ -180,25 +282,42 @@ const AddVendor = () => {
             </FormGroup>
 
             <FormGroup>
-              <Label>City</Label>
-              <Input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                placeholder="Enter city"
-              />
-            </FormGroup>
-
-            <FormGroup>
               <Label>State</Label>
-              <Input
-                type="text"
+              <Select
                 name="state"
                 value={formData.state}
-                onChange={handleInputChange}
-                placeholder="Enter state"
-              />
+                onChange={handleStateChange}
+                disabled={loadingStates}
+              >
+                <option value="">Select State</option>
+
+                {states.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </FormGroup>
+
+            {/* CITY DROPDOWN */}
+            <FormGroup>
+              <Label>City</Label>
+              <Select
+                name="city"
+                value={formData.city}
+                onChange={handleCityChange}
+                disabled={!formData.state || loadingCities}
+              >
+                <option value="">
+                  {loadingCities ? "Loading cities..." : "Select City"}
+                </option>
+
+                {cities.map((c, i) => (
+                  <option key={i} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
             </FormGroup>
 
             <FormGroup>

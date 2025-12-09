@@ -700,22 +700,38 @@ const handlePrint = () => {
     const group = vendorGroups[vendor];
     const rowCount = group.rows.length;
     
+    // Sort rows by GRN number in ascending order
+    group.rows.sort((a, b) => {
+      const grnA = a.grn_number || "";
+      const grnB = b.grn_number || "";
+      return grnA.localeCompare(grnB);
+    });
+    
+    // Vendor header row
+    tableRows += `
+      <tr style="background-color: #f0f0f0;">
+        <td style="font-weight: bold; text-align: center; vertical-align: middle;">${slNo}</td>
+        <td colspan="8" style="font-weight: bold; vertical-align: middle; padding: 8px;">${vendor}</td>
+        <td rowspan="${rowCount + 1}" style="font-weight: bold; text-align: right; vertical-align: middle; background-color: #fff3cd;">${formatCurrency(group.grandTotal)}</td>
+      </tr>
+    `;
+    
+    // Detail rows for each GRN
     group.rows.forEach((row, index) => {
       const [payment1] = formatPaymentHistory(row.payment_status);
+      const subSerialNo = `${slNo}.${index + 1}`;
       
       tableRows += `
         <tr>
-          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; text-align: center; vertical-align: middle; font-weight: bold;">${slNo}</td>` : ''}
-          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; vertical-align: middle; font-weight: bold; overflow: hidden; text-overflow: ellipsis;">${vendor}</td>` : ''}
-          <td style="white-space: nowrap;vertical-align: middle;text-align: center;">${formatDate(row.invoice_date)}</td>
-          <td style="white-space: nowrap;vertical-align: middle;text-align: center;">${row.grn_number || "N/A"}</td>
-          <td style="white-space: nowrap;vertical-align: middle; text-align: center;">${row.invoice_no || "N/A"}</td>
-          <td style="white-space: nowrap;vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount)}</td>
-          <td style="white-space: nowrap;vertical-align: middle; text-align: center;">${row.payment_details?.status || "N/A"}</td>
-          <td style="white-space: nowrap;vertical-align: middle; text-align: left;">${payment1}</td>
-          <td style="white-space: nowrap;vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount_paid)}</td>
-          <td style="white-space: nowrap; vertical-align: middle;text-align: right;">${formatCurrency(row.pending_amount)}</td>
-          ${index === 0 ? `<td rowspan="${rowCount}" style="white-space: nowrap; text-align: right; vertical-align: middle; font-weight: bold; background-color: #fff3cd;">${formatCurrency(group.grandTotal)}</td>` : ''}
+          <td style="white-space: nowrap; text-align: center; vertical-align: middle; padding-left: 15px;">${subSerialNo}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${formatDate(row.invoice_date)}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.grn_number || "N/A"}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.invoice_no || "N/A"}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount)}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.payment_details?.status || "N/A"}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: left;">${payment1}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount_paid)}</td>
+          <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.pending_amount)}</td>
         </tr>
       `;
     });
@@ -761,7 +777,7 @@ const handlePrint = () => {
           
           th, td { 
             border: 1px solid #333; 
-            padding: 4px 6px; 
+            padding: 8px 10px; 
             text-align: left;
             vertical-align: top;
           }
@@ -789,7 +805,7 @@ const handlePrint = () => {
               font-size: 12px;
             }
             th, td {
-              padding: 3px 4px;
+              padding: 6px 8px;
             }
           }
           
@@ -802,7 +818,7 @@ const handlePrint = () => {
               font-size: 11px;
             }
             th, td {
-              padding: 2px 3px;
+              padding: 5px 6px;
             }
             h1 {
               font-size: 16px;
@@ -833,7 +849,6 @@ const handlePrint = () => {
           <thead>
             <tr>
               <th style="white-space: nowrap;">Sl. No</th>
-              <th style="white-space: nowrap;">Vendor</th>
               <th>Inv.Date</th>
               <th>GRN Number</th>
               <th>Invoice No</th>
@@ -848,7 +863,7 @@ const handlePrint = () => {
           <tbody>
             ${tableRows}
             <tr style="background-color: #d4edda; font-weight: bold;">
-              <td colspan="10" style="text-align: right; padding: 8px; font-size: 14px;">Gross Total:</td>
+              <td colspan="9" style="text-align: right; padding: 8px; font-size: 14px;">Gross Total:</td>
               <td style="text-align: right; padding: 8px; font-size: 14px;">${formatCurrency(overallGrandTotal)}</td>
             </tr>
           </tbody>

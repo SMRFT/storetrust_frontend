@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import apiRequest from '../apiRequest';
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import apiRequest from "../apiRequest";
 import {
   FaPlus,
   FaSave,
@@ -9,33 +9,56 @@ import {
   FaEyeSlash,
   FaChevronDown,
   FaCalendarAlt,
-} from 'react-icons/fa';
+} from "react-icons/fa";
 
-import{
-  Container, Header,  TableHeader as thead, FormGroup,InputWrapper, IconWrapper,  
-  TableCell as Td, TableActionButton, FormRow, AddButtonContainer, AddButton, ButtonGroup, Button, Title, Subheading,
-  FiltersSection, FiltersGrid, Label, Input, Table, TableHeader as Th, CloseButton, SubTable, SubTh, SubTd, 
+import {
+  colors,
+  Container,
+  FormGroup,
+  InputWrapper,
+  IconWrapper,
+  Td,
+  TableActionButton,
+  FormRow,
+  AddButtonContainer,
+  AddButton,
+  ButtonGroup,
+  Button,
+  Title,
+  Subheading,
+  FiltersSection,
+  FiltersGrid,
+  Label,
+  Input,
+  Table,
+  Th,
+  CloseButton,
+  SubTable,
+  SubTh,
+  SubTd,
+  Header,
 } from "../StyledComponents";
 
-// Helper: to Roman numeral
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const toRomanNumeral = (num) => {
-  if (!num || num < 1) return '';
+  if (!num || num < 1) return "";
   const romanMap = [
-    { value: 1000, numeral: 'M' },
-    { value: 900, numeral: 'CM' },
-    { value: 500, numeral: 'D' },
-    { value: 400, numeral: 'CD' },
-    { value: 100, numeral: 'C' },
-    { value: 90, numeral: 'XC' },
-    { value: 50, numeral: 'L' },
-    { value: 40, numeral: 'XL' },
-    { value: 10, numeral: 'X' },
-    { value: 9, numeral: 'IX' },
-    { value: 5, numeral: 'V' },
-    { value: 4, numeral: 'IV' },
-    { value: 1, numeral: 'I' },
+    { value: 1000, numeral: "M" },
+    { value: 900, numeral: "CM" },
+    { value: 500, numeral: "D" },
+    { value: 400, numeral: "CD" },
+    { value: 100, numeral: "C" },
+    { value: 90, numeral: "XC" },
+    { value: 50, numeral: "L" },
+    { value: 40, numeral: "XL" },
+    { value: 10, numeral: "X" },
+    { value: 9, numeral: "IX" },
+    { value: 5, numeral: "V" },
+    { value: 4, numeral: "IV" },
+    { value: 1, numeral: "I" },
   ];
-  let result = '';
+  let result = "";
   for (const { value, numeral } of romanMap) {
     while (num >= value) {
       result += numeral;
@@ -45,43 +68,65 @@ const toRomanNumeral = (num) => {
   return result;
 };
 
+const getIntentStatus = (items) => {
+  if (!items || items.length === 0) return "Pending";
 
-// get current user info from localStorage
-const getCurrentUser = () => {
-  const name = localStorage.getItem('name');
-  const email = localStorage.getItem('userEmail');
-  return name || email || 'Unknown User';
+  const statuses = items.map((i) => {
+    switch (i.status) {
+      case "Approve":
+        return "Approved";
+      case "Partially Approve":
+        return "Partially Approved";
+      case "Reject":
+        return "Rejected";
+      default:
+        return i.status || "Pending";
+    }
+  });
+
+  // If any item is still Pending → whole intent is Pending
+  if (statuses.includes("Pending")) return "Pending";
+
+  // All items same status
+  if (statuses.every((s) => s === "Approved")) return "Approved";
+  if (statuses.every((s) => s === "Rejected")) return "Rejected";
+  if (statuses.every((s) => s === "Partially Approved"))
+    return "Partially Approved";
+
+  // Mixed statuses (no Pending) — any partial approval or mix = Partially Approved
+  if (statuses.includes("Partially Approved")) return "Partially Approved";
+
+  // Mix of Approved + Rejected only = Partially Approved
+  if (statuses.includes("Approved") && statuses.includes("Rejected"))
+    return "Partially Approved";
+
+  // Fallback
+  if (statuses.includes("Approved")) return "Approved";
+  if (statuses.includes("Rejected")) return "Rejected";
+
+  return "Pending";
 };
-const printTableRef = (items, fromDate = "", toDate = "", createdBy = "Unknown User") => {
-  const formattedFromDate = fromDate
-    ? new Date(fromDate).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "";
 
-  const formattedToDate = toDate
-    ? new Date(toDate).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "";
+const printTableRef = (
+  items,
+  fromDate = "",
+  toDate = "",
+  createdBy = "Unknown User",
+) => {
+  const fmt = (d) =>
+    d
+      ? new Date(d).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "";
 
   const tableHtml = `
-<div style="text-align: center; font-weight: bold; font-size: 18px;">
-  SHANMUGA HOSPITAL LIMITED
-</div>
-<div style="text-align: center; font-size: 14px;">
-  51/24, Saradha College Road, Salem - 636007
-</div>
-
-<div style="margin: 10px 0; font-size: 14px; text-align: left;">
-  ${ (formattedFromDate || formattedToDate) ? ('Date' + (formattedFromDate && formattedToDate ?  ': ' : '') + ': ' + (formattedFromDate ? formattedFromDate : '') + (formattedFromDate && formattedToDate ? '' : '') + (!formattedFromDate && formattedToDate ? formattedToDate : '')) : '' }
-</div>
-
-    <table style="width:100%; border-collapse:collapse; font-family:'Segoe UI',sans-serif; margin-top:20px;">
+    <div style="text-align:center;font-weight:bold;font-size:18px;">SHANMUGA HOSPITAL LIMITED</div>
+    <div style="text-align:center;font-size:14px;">51/24, Saradha College Road, Salem - 636007</div>
+    ${fromDate || toDate ? `<div style="margin:10px 0;font-size:14px;">Date: ${fmt(fromDate)}${fromDate && toDate ? " – " : ""}${fmt(toDate)}</div>` : ""}
+    <table style="width:100%;border-collapse:collapse;font-family:'Segoe UI',sans-serif;margin-top:20px;">
       <thead>
         <tr>
           <th style="background:#f2f2f2;color:black;font-weight:bold;border:1px solid #d6f0ff;padding:12px;text-align:left;">S.No</th>
@@ -95,25 +140,20 @@ const printTableRef = (items, fromDate = "", toDate = "", createdBy = "Unknown U
             ? items
                 .map(
                   (item, idx) => `
-          <tr>
-            <td style="border:1px solid #d6f0ff;padding:12px;text-align:left;">${idx + 1}</td>
-            <td style="border:1px solid #d6f0ff;padding:12px;text-align:left;">${item.itemName}</td>
-            <td style="border:1px solid #d6f0ff;padding:12px;text-align:left;">${item.quantity}</td>
-          </tr>
-          `
+              <tr>
+                <td style="border:1px solid #d6f0ff;padding:12px;">${idx + 1}</td>
+                <td style="border:1px solid #d6f0ff;padding:12px;">${item.itemName || "—"}</td>
+                <td style="border:1px solid #d6f0ff;padding:12px;">${item.quantity}</td>
+              </tr>`,
                 )
                 .join("")
-            : `<tr>
-            <td colspan="3" style="border:1px solid #d6f0ff;padding:12px;text-align:center;">No items added yet.</td>
-          </tr>`
+            : `<tr><td colspan="3" style="border:1px solid #d6f0ff;padding:12px;text-align:center;">No items added yet.</td></tr>`
         }
       </tbody>
     </table>
-
-    <div style="margin-top:40px; display:flex; justify-content:flex-end; font-size:14px; font-style:italic;">
+    <div style="margin-top:40px;display:flex;justify-content:flex-end;font-size:14px;font-style:italic;">
       Prepared by: <b style="margin-left:6px;">${createdBy}</b>
-    </div>
-  `;
+    </div>`;
 
   const printWin = window.open("", "_blank", "width=800,height=600");
   printWin.document.write(`
@@ -127,86 +167,101 @@ const printTableRef = (items, fromDate = "", toDate = "", createdBy = "Unknown U
           th { background-color: #00bfff; color: white; }
         </style>
       </head>
-      <body>
-        ${tableHtml}
-      </body>
-    </html>
-  `);
+      <body>${tableHtml}</body>
+    </html>`);
   printWin.document.close();
   printWin.focus();
   printWin.print();
   printWin.close();
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
 
 function TravellersIntent() {
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [itemName, setItemName] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const [date, setDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [itemName, setItemName] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [items, setItems] = useState([]);
   const [savedIntents, setSavedIntents] = useState([]);
   const [filters, setFilters] = useState({
-    from_date: new Date().toISOString().split('T')[0],
-    to_date: new Date().toISOString().split('T')[0],
+    from_date: new Date().toISOString().split("T")[0],
+    to_date: new Date().toISOString().split("T")[0],
   });
   const [expandedIntents, setExpandedIntents] = useState(new Set());
   const [editingIntentNumber, setEditingIntentNumber] = useState(null);
   const [editingDate, setEditingDate] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
-  const [editedItemName, setEditedItemName] = useState('');
-  const [editedQuantity, setEditedQuantity] = useState('');
-  const [selectedItem, setSelectedItem] = useState('');
-  const [hsnNumber, setHsnNumber] = useState(''); // holds the current selection's HSN
+  const [editedQuantity, setEditedQuantity] = useState("");
+  const [selectedItem, setSelectedItem] = useState("");
+  const [hsnNumber, setHsnNumber] = useState("");
   const [availableItems, setAvailableItems] = useState([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (!e.target.closest('.dropdown-container')) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
   const printRef = useRef();
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
+
+  // ── Resolve itemName from availableItems using item_id or hsn ────────────
+  const getItemName = useCallback(
+    (item) => {
+      const matched = availableItems.find(
+        (i) =>
+          String(i.item_id) === String(item.item_id) ||
+          (item.hsn && String(i.hsn) === String(item.hsn)),
+      );
+      return matched?.itemName || item.itemName || "—";
+    },
+    [availableItems],
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".dropdown-container")) setShowDropdown(false);
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
+
   const handlePrintIntent = (intent) => {
     const safeItems = Array.isArray(intent.items)
       ? intent.items
-      : typeof intent.items === 'string'
-      ? JSON.parse(intent.items || '[]')
-      : [];
-
-    printTableRef(safeItems, filters.from_date, filters.to_date, getCurrentUser());
+      : typeof intent.items === "string"
+        ? JSON.parse(intent.items || "[]")
+        : [];
+    const printItems = safeItems.map((it) => ({
+      ...it,
+      itemName: getItemName(it),
+    }));
+    printTableRef(printItems, filters.from_date, filters.to_date);
   };
-  // Fetch items list for dropdown
-useEffect(() => {
-  const fetchItems = async () => {
-    try {
-      setLoadingItems(true);
-      const result = await apiRequest(`${StoreTrustbaseurl}items/list/`, 'GET');
-      if (result.success) {
-        // Filter out items with empty/null/undefined hsn
-        const filteredItems = (result.data || []).filter(
-          (item) => item.hsn && item.hsn.trim() !== ''
+
+  // ── Fetch available items for dropdown ───────────────────────────────────
+  useEffect(() => {
+    const fetchItems = async () => {
+      try {
+        setLoadingItems(true);
+        const result = await apiRequest(
+          `${StoreTrustbaseurl}items/list/`,
+          "GET",
         );
-        setAvailableItems(filteredItems);
-      } else {
-        console.error('Failed to fetch items:', result.error);
+        if (result.success) {
+          const filtered = (result.data || []).filter(
+            (item) => item.hsn && item.hsn.trim() !== "",
+          );
+          setAvailableItems(filtered);
+        } else {
+          setAvailableItems([]);
+        }
+      } catch {
         setAvailableItems([]);
+      } finally {
+        setLoadingItems(false);
       }
-    } catch (error) {
-      console.error('Error fetching items:', error);
-      setAvailableItems([]);
-    } finally {
-      setLoadingItems(false);
-    }
-  };
-  fetchItems();
-}, [StoreTrustbaseurl]);
-
+    };
+    fetchItems();
+  }, [StoreTrustbaseurl]);
 
   const fetchSavedData = useCallback(async () => {
     try {
@@ -214,28 +269,23 @@ useEffect(() => {
       const params = [];
       if (filters.from_date) params.push(`from_date=${filters.from_date}`);
       if (filters.to_date) params.push(`to_date=${filters.to_date}`);
-      if (params.length > 0) {
-        url += `?${params.join('&')}`;
-      }
+      if (params.length > 0) url += `?${params.join("&")}`;
 
-      const response = await apiRequest(url, 'GET');
+      const response = await apiRequest(url, "GET");
       if (response.success) {
-const parsedData = (response.data || [])
-  .filter(intent => intent.is_active !== false) // ✅ filter inactive intents
-  .map((intent) => ({
-    ...intent,
-    items: (typeof intent.items === 'string' ? JSON.parse(intent.items) : intent.items)
-      .filter((item) => item.is_active !== false), // ✅ keep only active items
-  }));
-
-setSavedIntents(parsedData);
-
-      } else {
-        console.error('Error fetching traveller intents:', response.error);
+        const parsedData = (response.data || [])
+          .filter((intent) => intent.is_active !== false)
+          .map((intent) => ({
+            ...intent,
+            items: (typeof intent.items === "string"
+              ? JSON.parse(intent.items)
+              : intent.items
+            ).filter((item) => item.is_active !== false),
+          }));
+        setSavedIntents(parsedData);
       }
-    } catch (error) {
-      console.error('Fetch error:', error);
-      alert('Something went wrong while fetching saved data.');
+    } catch {
+      alert("Something went wrong while fetching saved data.");
     }
   }, [StoreTrustbaseurl, filters.from_date, filters.to_date]);
 
@@ -243,402 +293,351 @@ setSavedIntents(parsedData);
     fetchSavedData();
   }, [fetchSavedData]);
 
-  const handleItemChange = (e) => {
-    const selectedName = e.target.value;
-    setSelectedItem(selectedName);
-    setItemName(selectedName);
-
-    const selectedItemObj = availableItems.find((item) => item.itemName === selectedName);
-    const hsnValue = selectedItemObj ? selectedItemObj.hsn || '' : '';
-    setHsnNumber(hsnValue);
-  };
-
+  // ── Add item to local list ───────────────────────────────────────────────
   const handleAddToList = () => {
     if (!itemName || !quantity) {
-      alert('Please enter item name and quantity');
+      alert("Please enter item name and quantity");
       return;
     }
-    const newItem = {
-      id: Date.now(),
-      date,
-      itemName,
-      hsn: hsnNumber, // IMPORTANT: store as 'hsn' (backend expects this key)
-      status: 'Pending',
-      is_active: true,
-      quantity: parseInt(quantity, 10),
-    };
-    setItems((prev) => [...prev, newItem]);
-    setItemName('');
-    setQuantity('');
-    setSelectedItem('');
-    setHsnNumber('');
+    // Look up item_id from availableItems by itemName
+    const matched = availableItems.find((i) => i.itemName === itemName);
+    setItems((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        date,
+        item_id: matched?.item_id
+          ? String(matched.item_id)
+          : String(Date.now()),
+        hsn: hsnNumber,
+        status: "Pending",
+        is_active: true,
+        quantity: parseInt(quantity, 10),
+      },
+    ]);
+    setItemName("");
+    setQuantity("");
+    setSelectedItem("");
+    setHsnNumber("");
   };
 
+  // ── Save all items to backend ────────────────────────────────────────────
   const handleSaveAll = async () => {
     if (items.length === 0) {
-      alert('No items to save.');
+      alert("No items to save.");
       return;
     }
-
     try {
-      const currentUser =
-        localStorage.getItem('username') ||
-        localStorage.getItem('user') ||
-        localStorage.getItem('name') ||
-        'Unknown User';
-
-      // Map each local item to the exact payload shape the API expects
-      const payloadItems = items.map((it, index) => ({
-        item_id: (index + 1).toString(),
-        itemName: it.itemName,
+      // Only send item_id, hsn, quantity — no itemName
+      const payloadItems = items.map((it) => ({
+        item_id: it.item_id,
+        hsn: it.hsn,
         quantity: it.quantity,
-        hsn: it.hsn, // IMPORTANT: send 'hsn' from the item, not component-level state
-        status: 'Pending',
+        status: "Pending",
         is_active: true,
-       
         intent_status: null,
       }));
 
-      const data = {
-        date,
-        items: payloadItems,
-        
-      };
+      const response = await apiRequest(
+        `${StoreTrustbaseurl}travellers-intent/`,
+        "POST",
+        { date, items: payloadItems },
+      );
+      if (!response.success)
+        throw new Error(response.error || "Failed to save items");
 
-      const response = await apiRequest(`${StoreTrustbaseurl}travellers-intent/`, 'POST', data);
-      if (!response.success) throw new Error(response.error || 'Failed to save items');
-
-      alert('Successfully saved');
+      alert("Successfully saved");
       setItems([]);
-      setHsnNumber('');
+      setHsnNumber("");
       fetchSavedData();
-      // Print the just-saved items (use payloadItems because items state was cleared)
-      printTableRef(payloadItems, filters.from_date, filters.to_date, currentUser);
+
+      // Resolve names for print
+      const printItems = payloadItems.map((it) => ({
+        ...it,
+        itemName: getItemName(it),
+      }));
+      printTableRef(printItems, filters.from_date, filters.to_date);
     } catch (error) {
       console.error(error);
-      alert('Something went wrong!');
+      alert("Something went wrong!");
     }
   };
 
-  const handleDeleteSavedItem = async (intentNumber, intentDate, itemId, itemHsn) => {
-    const confirmDelete = window.confirm('Are you sure you want to delete this item?');
-    if (!confirmDelete) return;
-
+  const handleDeleteSavedItem = async (
+    intentNumber,
+    intentDate,
+    itemId,
+    itemHsn,
+  ) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
-      const currentUser =
-        localStorage.getItem('username') ||
-        localStorage.getItem('user') ||
-        localStorage.getItem('name') ||
-        'Unknown User';
-
-      const data = {
-        intent_number: intentNumber,
-        date: intentDate,
-        item_id: itemId,
-        itemName: editedItemName,
-        quantity: parseInt(editedQuantity || '0', 10),
-        hsn: itemHsn || '', // forward the item's HSN (not strictly needed for delete, but harmles
-        intent_status: null,
-      };
-
       const response = await apiRequest(
-        `${StoreTrustbaseurl}travellers-intent/soft-delete-item/?intent_number=${encodeURIComponent(
-          intentNumber
-        )}&date=${intentDate}&item_id=${itemId}`,
-        'DELETE',
-        data
+        `${StoreTrustbaseurl}travellers-intent/soft-delete-item/?intent_number=${encodeURIComponent(intentNumber)}&date=${intentDate}&item_id=${itemId}`,
+        "DELETE",
+        {
+          intent_number: intentNumber,
+          date: intentDate,
+          item_id: itemId,
+          quantity: parseInt(editedQuantity || "0", 10),
+          hsn: itemHsn || "",
+          intent_status: null,
+        },
       );
-
       if (response.success) {
-        alert('Item soft-deleted successfully');
+        alert("Item soft-deleted successfully");
         await fetchSavedData();
-      } else {
-        alert('Failed to delete item.');
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Error deleting item.');
+      } else alert("Failed to delete item.");
+    } catch {
+      alert("Error deleting item.");
     }
   };
 
   const handleDeleteAllByIntent = async (intentNumber, intentDate) => {
     if (!intentNumber || !intentDate) {
-      alert('Missing intent number or date for delete-all action.');
+      alert("Missing intent number or date.");
       return;
     }
-
-    const confirmDelete = window.confirm(`Delete all items for intent ${intentNumber}?`);
-    if (!confirmDelete) return;
-
+    if (!window.confirm(`Delete all items for intent ${intentNumber}?`)) return;
     try {
       const response = await apiRequest(
-        `${StoreTrustbaseurl}travellers-intent/soft-delete-intent/?intent_number=${encodeURIComponent(
-          intentNumber
-        )}&date=${intentDate}`,
-        'DELETE'
+        `${StoreTrustbaseurl}travellers-intent/soft-delete-intent/?intent_number=${encodeURIComponent(intentNumber)}&date=${intentDate}`,
+        "DELETE",
       );
-
       if (response.success) {
-        alert('All items for this intent deleted successfully');
+        alert("All items deleted successfully");
         setExpandedIntents((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(intentNumber);
-          return newSet;
+          const s = new Set(prev);
+          s.delete(intentNumber);
+          return s;
         });
-        setSavedIntents((prevIntents) =>
-          prevIntents.filter((intent) => !(intent.intent_number === intentNumber && intent.date === intentDate))
+        setSavedIntents((prev) =>
+          prev.filter(
+            (i) => !(i.intent_number === intentNumber && i.date === intentDate),
+          ),
         );
       } else {
-        alert(`Failed to delete all items: ${response.error || 'Unknown error'}`);
+        alert(`Failed: ${response.error || "Unknown error"}`);
       }
-    } catch (error) {
-      console.error(error);
-      alert('Error deleting all items for this intent.');
+    } catch {
+      alert("Error deleting all items.");
     }
   };
 
   const handleEditSavedItem = (intent, item) => {
-    const intentIdentifier = intent.intent_number || intent.id;
-    const itemIdentifier = item.item_id || item.id;
-
-    if (!intentIdentifier) {
-      alert('Intent identifier not found. Cannot edit item.');
+    const intentId = intent.intent_number || intent.id;
+    const itemId = item.item_id || item.id;
+    if (!intentId) {
+      alert("Intent identifier not found.");
       return;
     }
-    if (!itemIdentifier) {
-      alert('Item identifier not found. Cannot edit item.');
+    if (!itemId) {
+      alert("Item identifier not found.");
       return;
     }
-
-    setEditingIntentNumber(intentIdentifier);
+    setEditingIntentNumber(intentId);
     setEditingDate(intent.date);
-    setEditingItemId(itemIdentifier);
-    setEditedItemName(item.itemName);
+    setEditingItemId(itemId);
     setEditedQuantity(String(item.quantity));
-    setHsnNumber(item.hsn || ''); // ensure edits carry the correct HSN in the PATCH payload
+    setHsnNumber(item.hsn || "");
   };
 
   const handleCancelEdit = () => {
     setEditingIntentNumber(null);
     setEditingDate(null);
     setEditingItemId(null);
-    setEditedItemName('');
-    setEditedQuantity('');
-    setHsnNumber('');
+    setEditedQuantity("");
+    setHsnNumber("");
   };
 
   const handleSaveEditedItem = async () => {
-    if (!editedItemName || !editedQuantity) {
-      alert('Please enter a valid item name and quantity.');
+    if (!editedQuantity) {
+      alert("Please enter a valid quantity.");
       return;
     }
-
     if (!editingIntentNumber || !editingDate || !editingItemId) {
-      alert('Missing required identifiers for editing. Please try again.');
+      alert("Missing identifiers.");
       return;
     }
-
     try {
-      const currentUser =
-        localStorage.getItem('username') ||
-        localStorage.getItem('user') ||
-        localStorage.getItem('name') ||
-        'Unknown User';
-
-      const data = {
-        intent_number: editingIntentNumber,
-        date: editingDate,
-        items: [
-          {
-            item_id: editingItemId,
-            itemName: editedItemName,
-            quantity: parseInt(editedQuantity, 10),
-            hsn: hsnNumber || '', // send 'hsn' in edit payload
-            status: 'Pending',
-            is_active: true,
-          },
-        ],
-       
-        
-        intent_status: null,
-      };
-
       const response = await apiRequest(
         `${StoreTrustbaseurl}travellers-intent/update-item/`,
-        'PATCH',
-        data
+        "PATCH",
+        {
+          intent_number: editingIntentNumber,
+          date: editingDate,
+          items: [
+            {
+              item_id: editingItemId,
+              quantity: parseInt(editedQuantity, 10),
+              hsn: hsnNumber || "",
+              status: "Pending",
+              is_active: true,
+            },
+          ],
+          intent_status: null,
+        },
       );
-
       if (response.success) {
-        alert('Item updated successfully.');
+        alert("Item updated successfully.");
         handleCancelEdit();
         await fetchSavedData();
-      } else {
-        console.error('Update failed:', response);
-        alert(`Failed to update item: ${response.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Update error:', error);
-      alert('Error updating item.');
+      } else alert(`Failed to update: ${response.error || "Unknown error"}`);
+    } catch {
+      alert("Error updating item.");
     }
   };
 
   const handleToggleView = (intentNumber) => {
     setExpandedIntents((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(intentNumber)) {
-        newSet.delete(intentNumber);
-      } else {
-        newSet.add(intentNumber);
-      }
-      return newSet;
+      const s = new Set(prev);
+      s.has(intentNumber) ? s.delete(intentNumber) : s.add(intentNumber);
+      return s;
     });
   };
 
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
+  const handleFilterChange = (key, value) =>
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  const clearFilters = () => setFilters({ from_date: "", to_date: "" });
 
-  const clearFilters = () => {
-    setFilters({
-      from_date: '',
-      to_date: '',
-    });
-  };
-  
   return (
     <Container>
       <Header>
-      <Title>Travellers Intent Form</Title>
+        <Title>Travellers Intent Form</Title>
       </Header>
+
+      {/* ── Form Row ── */}
       <FormRow>
-  {/* Date */}
-  <FormGroup style={{ flex: 1 }}>
-    <Label>Date</Label>
-    <InputWrapper>
-      <IconWrapper>
-        <FaCalendarAlt />
-      </IconWrapper>
-      <Input
-        type="date"
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-        style={{ paddingLeft: '35px' }}
-      />
-    </InputWrapper>
-  </FormGroup>
+        {/* Date */}
+        <FormGroup style={{ flex: 1 }}>
+          <Label>Date</Label>
+          <InputWrapper>
+            <IconWrapper>
+              <FaCalendarAlt />
+            </IconWrapper>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={{ paddingLeft: "35px" }}
+            />
+          </InputWrapper>
+        </FormGroup>
 
-  {/* Item Name */}
-{/* Item Name */}
-<FormGroup style={{ flex: 1 }}>
-  <Label>Item Name</Label>
-  <InputWrapper className="dropdown-container" style={{ position: 'relative' }}>
-    <input
-      type="text"
-      value={selectedItem}
-      onFocus={() => setShowDropdown(true)} // 👈 show dropdown on focus
-      onChange={(e) => {
-        const value = e.target.value;
-        setSelectedItem(value);
-        setItemName(value);
-        setShowDropdown(true); // 👈 keep dropdown open while typing
-      }}
-      placeholder={loadingItems ? 'Loading...' : 'Type or select item'}
-      style={{
-        width: '100%',
-        padding: '10px 12px',
-        borderRadius: '8px',
-        fontSize: '16px',
-        outline: 'none',
-        backgroundColor: '#F9F9F9',
-      }}
-    />
-    <FaChevronDown
-      onClick={() => setShowDropdown((prev) => !prev)} // 👈 toggle dropdown manually
-      style={{
-        position: 'absolute',
-        right: '10px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        cursor: 'pointer',
-        color: '#32443fff',
-      }}
-    />
-
-    {/* 👇 Dropdown list */}
-    {showDropdown && (
-      <div
-        style={{
-          position: 'absolute',
-          top: '110%',
-          left: 0,
-          width: '100%',
-          maxHeight: '180px',
-          overflowY: 'auto',
-          backgroundColor: '#fff',
-          border: '1px solid #ccc',
-          borderRadius: '6px',
-          zIndex: 10,
-        }}
-      >
-{availableItems
-  .filter((item) =>
-    item.itemName
-      .toLowerCase()
-      .startsWith(selectedItem.toLowerCase())
-  )
-  .slice(0, 30)
-  .map((item) => (
-
-            <div
-              key={item.id}
-              onClick={() => {
-                setSelectedItem(item.itemName);
-                setItemName(item.itemName);
-                setHsnNumber(item.hsn || '');
-                setShowDropdown(false); // 👈 close dropdown on select
+        {/* Item Name */}
+        <FormGroup style={{ flex: 1 }}>
+          <Label>Item Name</Label>
+          <InputWrapper
+            className="dropdown-container"
+            style={{ position: "relative" }}
+          >
+            <input
+              type="text"
+              value={selectedItem}
+              onFocus={() => setShowDropdown(true)}
+              onChange={(e) => {
+                setSelectedItem(e.target.value);
+                setItemName(e.target.value);
+                setHsnNumber("");
+                setShowDropdown(true);
               }}
+              placeholder={loadingItems ? "Loading..." : "Type or select item"}
               style={{
-                padding: '8px 10px',
-                cursor: 'pointer',
-                backgroundColor: '#fff',
+                width: "100%",
+                padding: "8px 32px 8px 10px",
+                borderRadius: "6px",
+                fontSize: "0.82rem",
+                outline: "none",
+                border: `1px solid ${colors.border}`,
+                backgroundColor: colors.surface,
+                color: colors.textMain,
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = '#f5f5f5')
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = '#fff')
-              }
-            >
-              {item.itemName}
-            </div>
-          ))}
-      </div>
-    )}
-  </InputWrapper>
-</FormGroup>
+            />
+            <FaChevronDown
+              onClick={() => setShowDropdown((prev) => !prev)}
+              style={{
+                position: "absolute",
+                right: "10px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+                color: colors.textMuted,
+              }}
+            />
+            {showDropdown && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "110%",
+                  left: 0,
+                  width: "100%",
+                  maxHeight: "180px",
+                  overflowY: "auto",
+                  backgroundColor: "#fff",
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: "6px",
+                  zIndex: 10,
+                  boxShadow: "0 4px 12px rgba(102,37,73,0.1)",
+                }}
+              >
+                {availableItems
+                  .filter((item) =>
+                    item.itemName
+                      .toLowerCase()
+                      .includes(selectedItem.toLowerCase()),
+                  )
+                  .slice(0, 30)
+                  .map((item) => (
+                    <div
+                      key={item.item_id || item.id}
+                      onClick={() => {
+                        setSelectedItem(item.itemName);
+                        setItemName(item.itemName);
+                        setHsnNumber(item.hsn || "");
+                        setShowDropdown(false);
+                      }}
+                      style={{
+                        padding: "8px 10px",
+                        cursor: "pointer",
+                        fontSize: "0.82rem",
+                        color: colors.textMain,
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = colors.tabBg)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = "#fff")
+                      }
+                    >
+                      {item.itemName}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </InputWrapper>
+        </FormGroup>
 
+        {/* HSN */}
+        <FormGroup style={{ flex: 1 }}>
+          <Label>HSN Number</Label>
+          <Input
+            type="text"
+            value={hsnNumber}
+            readOnly
+            placeholder="HSN will appear here"
+          />
+        </FormGroup>
 
-  {/* HSN Number */}
-  <FormGroup style={{ flex: 1 }}>
-    <Label>HSN Number</Label>
-    <Input type="text" value={hsnNumber} readOnly placeholder="HSN will appear here" />
-  </FormGroup>
-
-  {/* Quantity */}
-  <FormGroup style={{ flex: 1 }}>
-    <Label>Quantity</Label>
-    <Input
-      type="number"
-      value={quantity}
-      onChange={(e) => setQuantity(e.target.value)}
-      placeholder="Enter quantity"
-    />
-  </FormGroup>
-</FormRow>
+        {/* Quantity */}
+        <FormGroup style={{ flex: 1 }}>
+          <Label>Quantity</Label>
+          <Input
+            type="number"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="Enter quantity"
+          />
+        </FormGroup>
+      </FormRow>
 
       <AddButtonContainer>
         <AddButton onClick={handleAddToList}>
@@ -646,7 +645,8 @@ setSavedIntents(parsedData);
         </AddButton>
       </AddButtonContainer>
 
-      <div style={{ marginTop: '20px' }}>
+      {/* ── Items List ── */}
+      <div style={{ marginTop: "20px" }}>
         <Subheading>Items List</Subheading>
         <div ref={printRef}>
           <Table>
@@ -663,12 +663,15 @@ setSavedIntents(parsedData);
                 items.map((item, index) => (
                   <tr key={item.id}>
                     <Td>{index + 1}</Td>
-                    <Td>{item.itemName}</Td>
+                    {/* Resolve name from availableItems */}
+                    <Td>{getItemName(item)}</Td>
                     <Td>{item.quantity}</Td>
                     <Td>
                       <TableActionButton
-                        onClick={() => setItems(items.filter((i) => i.id !== item.id))}
-                        color="#e74c3c"
+                        onClick={() =>
+                          setItems(items.filter((i) => i.id !== item.id))
+                        }
+                        color={colors.danger}
                         title="Remove"
                       >
                         <FaTrash />
@@ -678,7 +681,7 @@ setSavedIntents(parsedData);
                 ))
               ) : (
                 <tr>
-                  <Td colSpan="4" align="center">
+                  <Td colSpan="4" style={{ textAlign: "center" }}>
                     No items added yet.
                   </Td>
                 </tr>
@@ -687,14 +690,15 @@ setSavedIntents(parsedData);
           </Table>
 
           <ButtonGroup>
-            <Button onClick={handleSaveAll} bg="#3498db">
+            <Button onClick={handleSaveAll}>
               <FaSave /> Save
             </Button>
           </ButtonGroup>
         </div>
       </div>
 
-      <div style={{ marginTop: '40px' }}>
+      {/* ── Saved Intents ── */}
+      <div style={{ marginTop: "40px" }}>
         <Subheading>Saved Traveller Intents</Subheading>
 
         <FiltersSection>
@@ -708,8 +712,10 @@ setSavedIntents(parsedData);
                 <Input
                   type="date"
                   value={filters.from_date}
-                  onChange={(e) => handleFilterChange('from_date', e.target.value)}
-                  style={{ paddingLeft: '35px' }}
+                  onChange={(e) =>
+                    handleFilterChange("from_date", e.target.value)
+                  }
+                  style={{ paddingLeft: "35px" }}
                 />
               </InputWrapper>
             </FormGroup>
@@ -723,14 +729,22 @@ setSavedIntents(parsedData);
                 <Input
                   type="date"
                   value={filters.to_date}
-                  onChange={(e) => handleFilterChange('to_date', e.target.value)}
-                  style={{ paddingLeft: '35px' }}
+                  onChange={(e) =>
+                    handleFilterChange("to_date", e.target.value)
+                  }
+                  style={{ paddingLeft: "35px" }}
                 />
               </InputWrapper>
             </FormGroup>
 
-            <ButtonGroup style={{ justifyContent: 'flex-end', display: 'flex', alignItems: 'flex-end' }}>
-              <Button onClick={clearFilters} bg="#f39c12">
+            <ButtonGroup
+              style={{
+                justifyContent: "flex-end",
+                display: "flex",
+                alignItems: "flex-end",
+              }}
+            >
+              <Button secondary onClick={clearFilters}>
                 Clear
               </Button>
             </ButtonGroup>
@@ -743,6 +757,7 @@ setSavedIntents(parsedData);
               <Th>S.No</Th>
               <Th>Date</Th>
               <Th>Intent Number</Th>
+              <Th>Status</Th>
               <Th>Actions</Th>
             </tr>
           </thead>
@@ -751,33 +766,91 @@ setSavedIntents(parsedData);
               savedIntents.map((intent, index) => {
                 const intentId = intent.intent_number || intent.id;
                 const isExpanded = expandedIntents.has(intentId);
+                const intentStatus = getIntentStatus(intent.items);
+                const allNonPending =
+                  Array.isArray(intent.items) &&
+                  intent.items.length > 0 &&
+                  intent.items.every((item) => item.status !== "Pending");
 
                 return (
                   <React.Fragment key={`${intentId}-${intent.date}`}>
                     <tr>
                       <Td>{index + 1}</Td>
                       <Td>
-                        {new Date(intent.date).toLocaleDateString('en-IN', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
+                        {new Date(intent.date).toLocaleDateString("en-IN", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}
                       </Td>
                       <Td>{intentId}</Td>
+
+                      {/* ── Intent Status Badge ── */}
                       <Td>
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                        <span
+                          style={{
+                            padding: "2px 10px",
+                            borderRadius: "12px",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            backgroundColor:
+                              intentStatus === "Approved"
+                                ? "#d4edda"
+                                : intentStatus === "Rejected"
+                                  ? "#f8d7da"
+                                  : intentStatus === "Partially Approved"
+                                    ? "#cce5ff"
+                                    : "#fff3cd",
+                            color:
+                              intentStatus === "Approved"
+                                ? "#155724"
+                                : intentStatus === "Rejected"
+                                  ? "#721c24"
+                                  : intentStatus === "Partially Approved"
+                                    ? "#004085"
+                                    : "#856404",
+                          }}
+                        >
+                          {intentStatus}
+                        </span>
+                      </Td>
+
+                      {/* ── Actions ── */}
+                      <Td>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "4px",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {/* View / Hide */}
                           <TableActionButton
                             onClick={() => handleToggleView(intentId)}
-                            color="#2980b9"
-                            title={isExpanded ? 'Hide' : 'View'}
+                            color={colors.primary}
+                            title={isExpanded ? "Hide" : "View"}
                           >
                             {isExpanded ? <FaEyeSlash /> : <FaEye />}
                           </TableActionButton>
-                    
+
+                          {/* Delete All — disabled if all items are non-Pending */}
                           <TableActionButton
-                            onClick={() => handleDeleteAllByIntent(intentId, intent.date)}
-                            color="#e74c3c"
-                            title="Delete All"
+                            onClick={() =>
+                              allNonPending
+                                ? null
+                                : handleDeleteAllByIntent(intentId, intent.date)
+                            }
+                            color={colors.danger}
+                            title={
+                              allNonPending
+                                ? "Cannot delete — no Pending items"
+                                : "Delete All"
+                            }
+                            disabled={allNonPending}
+                            style={{
+                              opacity: allNonPending ? 0.35 : 1,
+                              cursor: allNonPending ? "not-allowed" : "pointer",
+                            }}
                           >
                             <FaTrash />
                           </TableActionButton>
@@ -785,56 +858,144 @@ setSavedIntents(parsedData);
                       </Td>
                     </tr>
 
+                    {/* ── Expanded Sub-Table ── */}
                     {isExpanded && (
                       <tr>
-                        <Td colSpan="4">
+                        <Td colSpan="5">
                           <SubTable>
                             <thead>
                               <tr>
                                 <SubTh>Item Name</SubTh>
-                                <SubTh>Quantity</SubTh>
+                                <SubTh>Requested Quantity</SubTh>
+                                <SubTh>Status</SubTh>
+                                <SubTh>Approved Quantity</SubTh>
                                 <SubTh>Actions</SubTh>
                               </tr>
                             </thead>
                             <tbody>
-                              {Array.isArray(intent.items) && intent.items.length > 0 ? (
+                              {Array.isArray(intent.items) &&
+                              intent.items.length > 0 ? (
                                 intent.items.map((item, itemIndex) => {
                                   const itemKey = item.item_id || item.id;
                                   const isEditing =
                                     editingIntentNumber === intentId &&
                                     editingDate === intent.date &&
                                     editingItemId === itemKey;
+                                  const isPending =
+                                    item.status === "Pending" || !item.status;
 
                                   return (
                                     <tr key={`${intentId}-${itemKey}`}>
+                                      {/* Item Name — resolved from availableItems */}
                                       <SubTd>
-                                          {`${toRomanNumeral(itemIndex + 1)}. ${item.itemName}`}
+                                        {`${toRomanNumeral(itemIndex + 1)}. ${getItemName(item)}`}
                                       </SubTd>
+
+                                      {/* Requested Quantity */}
                                       <SubTd>
                                         {isEditing ? (
                                           <Input
                                             type="number"
                                             value={editedQuantity}
-                                            onChange={(e) => setEditedQuantity(e.target.value)}
+                                            onChange={(e) =>
+                                              setEditedQuantity(e.target.value)
+                                            }
                                           />
                                         ) : (
                                           item.quantity
                                         )}
                                       </SubTd>
+
+                                      {/* Item Status Badge */}
                                       <SubTd>
-                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                        <span
+                                          style={{
+                                            padding: "2px 8px",
+                                            borderRadius: "12px",
+                                            fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                            backgroundColor:
+                                              item.status === "Approved" ||
+                                              item.status === "Approve"
+                                                ? "#d4edda"
+                                                : item.status === "Rejected" ||
+                                                    item.status === "Reject"
+                                                  ? "#f8d7da"
+                                                  : item.status ===
+                                                        "Partially Approved" ||
+                                                      item.status ===
+                                                        "Partially Approve"
+                                                    ? "#cce5ff"
+                                                    : "#fff3cd",
+                                            color:
+                                              item.status === "Approved" ||
+                                              item.status === "Approve"
+                                                ? "#155724"
+                                                : item.status === "Rejected" ||
+                                                    item.status === "Reject"
+                                                  ? "#721c24"
+                                                  : item.status ===
+                                                        "Partially Approved" ||
+                                                      item.status ===
+                                                        "Partially Approve"
+                                                    ? "#004085"
+                                                    : "#856404",
+                                          }}
+                                        >
+                                          {item.status === "Approve"
+                                            ? "Approved"
+                                            : item.status === "Reject"
+                                              ? "Rejected"
+                                              : item.status ===
+                                                  "Partially Approve"
+                                                ? "Partially Approved"
+                                                : item.status || "Pending"}
+                                        </span>
+                                      </SubTd>
+
+                                      {/* Approved Quantity */}
+                                      <SubTd>
+                                        <span
+                                          style={{
+                                            padding: "2px 8px",
+                                            borderRadius: "12px",
+                                            fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                            backgroundColor:
+                                              item.approved > 0
+                                                ? "#d4edda"
+                                                : "#fff3cd",
+                                            color:
+                                              item.approved > 0
+                                                ? "#155724"
+                                                : "#856404",
+                                          }}
+                                        >
+                                          {item.approved ?? 0}
+                                        </span>
+                                      </SubTd>
+
+                                      {/* Actions */}
+                                      <SubTd>
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            gap: "4px",
+                                            justifyContent: "center",
+                                          }}
+                                        >
                                           {isEditing ? (
                                             <>
                                               <TableActionButton
                                                 onClick={handleSaveEditedItem}
-                                                color='#27ae60'
+                                                color={colors.success}
                                                 title="Save"
                                               >
                                                 <FaSave />
                                               </TableActionButton>
                                               <TableActionButton
                                                 onClick={handleCancelEdit}
-                                                color="#c0392b"
+                                                color={colors.danger}
                                                 title="Cancel"
                                               >
                                                 <FaTrash />
@@ -842,24 +1003,62 @@ setSavedIntents(parsedData);
                                             </>
                                           ) : (
                                             <>
+                                              {/* Edit — disabled if not Pending */}
                                               <TableActionButton
-                                                onClick={() => handleEditSavedItem(intent, item)}
-                                                color="#000000"
-                                                title="Edit"
+                                                onClick={() =>
+                                                  isPending
+                                                    ? handleEditSavedItem(
+                                                        intent,
+                                                        item,
+                                                      )
+                                                    : null
+                                                }
+                                                color={colors.textMain}
+                                                title={
+                                                  isPending
+                                                    ? "Edit"
+                                                    : "Cannot edit — not Pending"
+                                                }
+                                                disabled={!isPending}
+                                                style={{
+                                                  opacity: !isPending
+                                                    ? 0.35
+                                                    : 1,
+                                                  cursor: !isPending
+                                                    ? "not-allowed"
+                                                    : "pointer",
+                                                }}
                                               >
                                                 <FaEdit />
                                               </TableActionButton>
+
+                                              {/* Delete — disabled if not Pending */}
                                               <TableActionButton
                                                 onClick={() =>
-                                                  handleDeleteSavedItem(
-                                                    intentId,
-                                                    intent.date,
-                                                    item.item_id || item.id,
-                                                    item.hsn || ''
-                                                  )
+                                                  isPending
+                                                    ? handleDeleteSavedItem(
+                                                        intentId,
+                                                        intent.date,
+                                                        item.item_id || item.id,
+                                                        item.hsn || "",
+                                                      )
+                                                    : null
                                                 }
-                                                color="#e74c3c"
-                                                title="Delete"
+                                                color={colors.danger}
+                                                title={
+                                                  isPending
+                                                    ? "Delete"
+                                                    : "Cannot delete — not Pending"
+                                                }
+                                                disabled={!isPending}
+                                                style={{
+                                                  opacity: !isPending
+                                                    ? 0.35
+                                                    : 1,
+                                                  cursor: !isPending
+                                                    ? "not-allowed"
+                                                    : "pointer",
+                                                }}
                                               >
                                                 <FaTrash />
                                               </TableActionButton>
@@ -872,7 +1071,10 @@ setSavedIntents(parsedData);
                                 })
                               ) : (
                                 <tr>
-                                  <SubTd colSpan="3" style={{ textAlign: 'center' }}>
+                                  <SubTd
+                                    colSpan="5"
+                                    style={{ textAlign: "center" }}
+                                  >
                                     No items available
                                   </SubTd>
                                 </tr>
@@ -887,7 +1089,7 @@ setSavedIntents(parsedData);
               })
             ) : (
               <tr>
-                <Td colSpan="4" align="center">
+                <Td colSpan="5" style={{ textAlign: "center" }}>
                   No saved intents found.
                 </Td>
               </tr>
@@ -898,4 +1100,5 @@ setSavedIntents(parsedData);
     </Container>
   );
 }
+
 export default TravellersIntent;

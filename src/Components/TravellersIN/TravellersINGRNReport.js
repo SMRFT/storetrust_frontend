@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import ReactDOM from "react-dom";
 import {
   Calendar,
   Search,
@@ -12,25 +13,102 @@ import {
   X,
   CreditCard,
   History,
-  CloudCog,
 } from "lucide-react";
-import { 
-  HistoryModalOverlay, DetailValue, ModalOverlay, TableHeaderCell, TableCell, ActionButton,PaymentModalOverlay, PaymentInput, PaymentModalContent, CustomButton, PaymentLabel, PaymentInputWrapper, PaymentSelect, PaymentForm, PaymentModalTitle, PaymentModalHeader, PaginationButton, PaginationText, PaginationControls, PaginationRight, PaymentButtonContainer, PaginationLeft, TableActionButton, PaginationSection, TableRow, Td,Th, TableBody, NoDataRow, DetailLabel,DetailSection,DetailGrid,DetailItem,DetailRow,NoDataCell,CustomBadge,TableHeaderRow,TableHeader,Table,LoadingText,TableWrapper,LoadingSpinner,TableContainer,LoadingContainer,RecordsText,ButtonContainer,GreenButton,ButtonGroup,RecordsInfo,ActionsSection,Input,IconWrapper,InputWrapper,Label,FilterGroup,FiltersGrid,FiltersSection,Subtitle,ItemsTableRow,ItemsTableCell,ItemsTableHeaderCell,HistoryButton,ItemsTableHeader,ItemsTable,DetailSectionTitle,ItemsSection,ModalScrollContainer,ModalHeader,ModalTitle,ModalBody,ModalContent,Container,Header,Title,HistoryTableCell,HistoryTableHeaderCell,HistoryTableRow,HistoryTableHeader,HistoryTable,HistoryModalTitle,HistoryModalHeader,HistoryModalContent
+
+import {
+  Container,
+  Header,
+  Title,
+  FiltersSection,
+  FiltersGrid,
+  FilterGroup,
+  Label,
+  InputWrapper,
+  IconWrapper,
+  Input,
+  ActionsSection,
+  RecordsInfo,
+  RecordsText,
+  ButtonGroup,
+  ButtonContainer,
+  GreenButton,
+  TableContainer,
+  TableWrapper,
+  Table,
+  TableBody,
+  TableRow,
+  TableActionButton,
+  Th,
+  Td,
+  LoadingContainer,
+  LoadingSpinner,
+  LoadingText,
+  PaginationSection,
+  PaginationLeft,
+  PaginationRight,
+  PaginationControls,
+  PaginationButton,
+  PaginationText,
+  CustomBadge,
+  CustomButton,
+  ModalOverlay,
+  ModalContent,
+  ModalScrollContainer,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+  DetailSection,
+  DetailSectionTitle,
+  DetailGrid,
+  DetailItem,
+  DetailLabel,
+  DetailValue,
+  ItemsSection,
+  ItemsTable,
+  ItemsTableHeader,
+  ItemsTableRow,
+  ItemsTableHeaderCell,
+  ItemsTableCell,
+  HistoryButton,
+  PaymentModalOverlay,
+  PaymentModalContent,
+  PaymentModalHeader,
+  PaymentModalTitle,
+  PaymentForm,
+  PaymentInputWrapper,
+  PaymentLabel,
+  PaymentInput,
+  PaymentSelect,
+  PaymentButtonContainer,
+  HistoryModalOverlay,
+  HistoryModalContent,
+  HistoryModalHeader,
+  HistoryModalTitle,
+  HistoryTable,
+  HistoryTableHeader,
+  HistoryTableRow,
+  HistoryTableHeaderCell,
+  HistoryTableCell,
 } from "../StyledComponents";
+
 import apiRequest from "../apiRequest";
 import { toast } from "react-toastify";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
 
- // Update the formatDate function at the top of your component
+// ─────────────────────────────────────────────
+// Portal — renders children directly into <body>
+// This is the key fix: modals escape the sidebar's
+// stacking context entirely, so z-index always wins.
+// ─────────────────────────────────────────────
+const Portal = ({ children }) => ReactDOM.createPortal(children, document.body);
+
+// ─────────────────────────────────────────────
+// Utility formatters
+// ─────────────────────────────────────────────
 const formatDate = (date) => {
-  if (!date || new Date(date).toString() === "Invalid Date") {
-    return "N/A";
-  }
+  if (!date || new Date(date).toString() === "Invalid Date") return "N/A";
   const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`; // dd/mm/yyyy format
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 
 const formatDateTime = (dateStr) => {
@@ -45,12 +123,544 @@ const formatDateTime = (dateStr) => {
   });
 };
 
-const formatCurrency = (value) => {
-  return `₹${parseFloat(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+const formatCurrency = (value) =>
+  `₹${parseFloat(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+const convertToDateFormat = (dateStr) => {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}/${month}/${year}`;
 };
 
+// ─────────────────────────────────────────────
+// HistoryModal
+// ─────────────────────────────────────────────
+const HistoryModal = ({ show, onClose, item, historyData, loading }) => {
+  if (!show || !item) return null;
 
+  const safeHistoryData = Array.isArray(historyData) ? historyData : [];
 
+  const prices = safeHistoryData.map((h) =>
+    parseFloat(h.matched_item?.unitPrice || 0),
+  );
+  const priceStats =
+    prices.length === 0
+      ? { min: 0, max: 0, avg: 0 }
+      : {
+          min: Math.min(...prices),
+          max: Math.max(...prices),
+          avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+        };
+  const totalStock = safeHistoryData.reduce(
+    (t, h) => t + parseInt(h.matched_item?.totalstock || 0),
+    0,
+  );
+  return (
+    <Portal>
+      <HistoryModalOverlay onClick={onClose} style={{ zIndex: 9999 }}>
+        <HistoryModalContent onClick={(e) => e.stopPropagation()}>
+          <HistoryModalHeader>
+            <HistoryModalTitle>
+              Purchase History — {item.itemName} (HSN: {item.hsn}) — Total
+              Stock: {totalStock}
+              <div
+                style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}
+              >
+                Price Range: ₹{priceStats.min.toFixed(2)} – ₹
+                {priceStats.max.toFixed(2)} | Avg: ₹{priceStats.avg.toFixed(2)}
+              </div>
+            </HistoryModalTitle>
+            <CustomButton variant="cancel" onClick={onClose}>
+              <X size={20} />
+            </CustomButton>
+          </HistoryModalHeader>
+
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "40px" }}>
+              <LoadingSpinner />
+              <LoadingText>Loading history...</LoadingText>
+            </div>
+          ) : safeHistoryData.length === 0 ? (
+            <div
+              style={{ textAlign: "center", padding: "40px", color: "#6b7280" }}
+            >
+              No previous purchase history found for this item.
+            </div>
+          ) : (
+            <HistoryTable>
+              <HistoryTableHeader>
+                <HistoryTableRow>
+                  {[
+                    "GRN Number",
+                    "Date",
+                    "Vendor",
+                    "HSN",
+                    "Item Name",
+                    "Unit Price",
+                    "Purchase Cost",
+                    "Quantity",
+                    "Free",
+                    "Stock",
+                    "Batch",
+                    "MRP",
+                  ].map((h) => (
+                    <HistoryTableHeaderCell key={h}>{h}</HistoryTableHeaderCell>
+                  ))}
+                </HistoryTableRow>
+              </HistoryTableHeader>
+              <tbody>
+                {safeHistoryData.map((historyItem, index) => {
+                  const itemData = historyItem.matched_item || {};
+                  const unitPrice = parseFloat(itemData.unitPrice || 0);
+                  return (
+                    <HistoryTableRow key={index}>
+                      <HistoryTableCell>
+                        {historyItem.grn_number || "N/A"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {new Date(historyItem.date).toLocaleDateString("en-IN")}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {historyItem.vendor_name || "N/A"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {itemData.hsn || "N/A"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {itemData.itemName || "N/A"}
+                      </HistoryTableCell>
+                      <HistoryTableCell
+                        isPriceColumn
+                        isHighPrice={
+                          unitPrice === priceStats.max &&
+                          priceStats.max > priceStats.min
+                        }
+                        isLowPrice={
+                          unitPrice === priceStats.min &&
+                          priceStats.max > priceStats.min
+                        }
+                      >
+                        ₹
+                        {unitPrice.toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        ₹
+                        {parseFloat(itemData.purchaseCost || 0).toLocaleString(
+                          "en-IN",
+                          { minimumFractionDigits: 2 },
+                        )}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {itemData.quantity || "N/A"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {itemData.free || "0"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {itemData.totalstock || "0"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        {itemData.batch || "-"}
+                      </HistoryTableCell>
+                      <HistoryTableCell>
+                        ₹
+                        {parseFloat(itemData.mrp || 0).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </HistoryTableCell>
+                    </HistoryTableRow>
+                  );
+                })}
+              </tbody>
+            </HistoryTable>
+          )}
+        </HistoryModalContent>
+      </HistoryModalOverlay>
+    </Portal>
+  );
+};
+
+// ─────────────────────────────────────────────
+// EnhancedViewModal
+// ─────────────────────────────────────────────
+const EnhancedViewModal = ({
+  showModal,
+  selectedRecord,
+  onClose,
+  onShowHistory,
+}) => {
+  if (!showModal || !selectedRecord) return null;
+  return (
+    <Portal>
+      <ModalOverlay onClick={onClose} style={{ zIndex: 9000 }}>
+        <ModalContent onClick={(e) => e.stopPropagation()}>
+          <ModalScrollContainer>
+            <ModalHeader>
+              <ModalTitle>
+                GRN Details — {selectedRecord.grn_number || "N/A"}
+              </ModalTitle>
+              <CustomButton variant="cancel" onClick={onClose}>
+                <X size={20} />
+              </CustomButton>
+            </ModalHeader>
+
+            <ModalBody>
+              {/* Basic Information */}
+              <DetailSection>
+                <DetailSectionTitle>📊 Basic Information</DetailSectionTitle>
+                <DetailGrid>
+                  {[
+                    ["GRN Number", selectedRecord.grn_number],
+                    ["Purchase Category", selectedRecord.purchase_category],
+                    ["Vendor", selectedRecord.vendor],
+                    ["Date", formatDate(selectedRecord.date)],
+                    ["Contact Person", selectedRecord.contact_person],
+                    ["Phone", selectedRecord.phone],
+                  ].map(([label, value]) => (
+                    <DetailItem key={label}>
+                      <DetailLabel>{label}</DetailLabel>
+                      <DetailValue>{value || "N/A"}</DetailValue>
+                    </DetailItem>
+                  ))}
+                </DetailGrid>
+              </DetailSection>
+
+              {/* Invoice Information */}
+              <DetailSection>
+                <DetailSectionTitle>🧾 Invoice Information</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem>
+                    <DetailLabel>Invoice Number</DetailLabel>
+                    <DetailValue>
+                      {selectedRecord.invoice_no || "N/A"}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Invoice Date</DetailLabel>
+                    <DetailValue>
+                      {formatDate(selectedRecord.invoice_date)}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Credit Period</DetailLabel>
+                    <DetailValue>
+                      {selectedRecord.credit_period || "N/A"}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Due Date</DetailLabel>
+                    <DetailValue>
+                      {formatDate(selectedRecord.due_date)}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Payment Method</DetailLabel>
+                    <DetailValue>
+                      {selectedRecord.payment_details?.payment_method || "N/A"}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Payment Status</DetailLabel>
+                    <DetailValue>
+                      <CustomBadge
+                        status={selectedRecord.payment_details?.status || "N/A"}
+                      >
+                        {selectedRecord.payment_details?.status || "N/A"}
+                      </CustomBadge>
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Amount Paid</DetailLabel>
+                    <DetailValue className="currency">
+                      {formatCurrency(
+                        selectedRecord.payment_details?.amount_paid,
+                      )}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Pending Amount</DetailLabel>
+                    <DetailValue className="currency">
+                      {formatCurrency(
+                        selectedRecord.payment_details?.pending_amount ??
+                          selectedRecord.pending_amount,
+                      )}
+                    </DetailValue>
+                  </DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              {/* Financial Breakdown */}
+              <DetailSection>
+                <DetailSectionTitle>💰 Financial Breakdown</DetailSectionTitle>
+                <DetailGrid>
+                  {[
+                    ["Non-Taxable Amount", selectedRecord.non_taxable_amount],
+                    ["Taxable Amount", selectedRecord.taxable_amount],
+                    ["CGST", selectedRecord.cgst],
+                    ["SGST", selectedRecord.sgst],
+                    ["IGST", selectedRecord.igst],
+                  ].map(([label, value]) => (
+                    <DetailItem key={label}>
+                      <DetailLabel>{label}</DetailLabel>
+                      <DetailValue className="currency">
+                        {formatCurrency(value)}
+                      </DetailValue>
+                    </DetailItem>
+                  ))}
+                  <DetailItem
+                    style={{
+                      background: "linear-gradient(135deg,#f0f9ff,#e0f2fe)",
+                      border: "2px solid #0284c7",
+                      boxShadow: "0 8px 25px rgba(2,132,199,.15)",
+                    }}
+                  >
+                    <DetailLabel
+                      style={{ color: "#0284c7", fontWeight: "bold" }}
+                    >
+                      Total Amount
+                    </DetailLabel>
+                    <DetailValue
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        color: "#0284c7",
+                      }}
+                    >
+                      {formatCurrency(selectedRecord.total_amount)}
+                    </DetailValue>
+                  </DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              {/* Items */}
+              <DetailSection>
+                <ItemsSection>
+                  <DetailSectionTitle>📦 Items Details</DetailSectionTitle>
+                  <ItemsTable>
+                    <ItemsTableHeader>
+                      <ItemsTableRow>
+                        {[
+                          "Item Name",
+                          "HSN",
+                          "Quantity",
+                          "Unit Cost",
+                          "Purchase Cost",
+                          "History",
+                        ].map((h) => (
+                          <ItemsTableHeaderCell key={h}>
+                            {h}
+                          </ItemsTableHeaderCell>
+                        ))}
+                      </ItemsTableRow>
+                    </ItemsTableHeader>
+                    <tbody>
+                      {selectedRecord.items?.length > 0 ? (
+                        selectedRecord.items.map((item, index) => (
+                          <ItemsTableRow key={index}>
+                            <ItemsTableCell>
+                              {item.itemName || "N/A"}
+                            </ItemsTableCell>
+                            <ItemsTableCell>{item.hsn || "N/A"}</ItemsTableCell>
+                            <ItemsTableCell>
+                              {item.quantity || "N/A"}
+                            </ItemsTableCell>
+                            <ItemsTableCell>
+                              {formatCurrency(item.unitPrice || 0)}
+                            </ItemsTableCell>
+                            <ItemsTableCell>
+                              {formatCurrency(item.purchaseCost || 0)}
+                            </ItemsTableCell>
+                            <ItemsTableCell>
+                              <HistoryButton
+                                onClick={() => onShowHistory(item)}
+                              >
+                                <History size={14} /> History
+                              </HistoryButton>
+                            </ItemsTableCell>
+                          </ItemsTableRow>
+                        ))
+                      ) : (
+                        <ItemsTableRow>
+                          <ItemsTableCell
+                            colSpan="6"
+                            style={{ textAlign: "center" }}
+                          >
+                            No items found
+                          </ItemsTableCell>
+                        </ItemsTableRow>
+                      )}
+                    </tbody>
+                  </ItemsTable>
+                </ItemsSection>
+              </DetailSection>
+
+              {/* Additional Details */}
+              <DetailSection>
+                <DetailSectionTitle>📝 Additional Details</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem>
+                    <DetailLabel>Address</DetailLabel>
+                    <DetailValue>
+                      {[
+                        selectedRecord.addressLine1,
+                        selectedRecord.addressLine2,
+                        selectedRecord.city,
+                        selectedRecord.state,
+                        selectedRecord.address,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "N/A"}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Remarks</DetailLabel>
+                    <DetailValue>{selectedRecord.remarks || "N/A"}</DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Created By</DetailLabel>
+                    <DetailValue>
+                      {selectedRecord.created_by && selectedRecord.created_by_id
+                        ? `${selectedRecord.created_by} (ID: ${selectedRecord.created_by_id})`
+                        : selectedRecord.created_by || "N/A"}
+                    </DetailValue>
+                  </DetailItem>
+                  <DetailItem>
+                    <DetailLabel>Created Date</DetailLabel>
+                    <DetailValue>
+                      {formatDateTime(selectedRecord.created_date)}
+                    </DetailValue>
+                  </DetailItem>
+                </DetailGrid>
+              </DetailSection>
+            </ModalBody>
+          </ModalScrollContainer>
+        </ModalContent>
+      </ModalOverlay>
+    </Portal>
+  );
+};
+
+// ─────────────────────────────────────────────
+// PaymentModal
+// ─────────────────────────────────────────────
+const PaymentModal = ({
+  show,
+  paymentDetails,
+  isPaymentDirty,
+  onClose,
+  onChange,
+  onSubmit,
+}) => {
+  if (!show) return null;
+  return (
+    <Portal>
+      <PaymentModalOverlay onClick={onClose} style={{ zIndex: 9000 }}>
+        <PaymentModalContent onClick={(e) => e.stopPropagation()}>
+          <PaymentModalHeader>
+            <PaymentModalTitle>
+              Update Payment — {paymentDetails.grn_number}
+            </PaymentModalTitle>
+            <CustomButton variant="cancel" onClick={onClose}>
+              <X size={20} />
+            </CustomButton>
+          </PaymentModalHeader>
+
+          <PaymentForm onSubmit={onSubmit}>
+            {/* Payment Date */}
+            <PaymentInputWrapper>
+              <PaymentLabel>Payment Date *</PaymentLabel>
+              <PaymentInput
+                type="date"
+                value={paymentDetails.payment_date}
+                onChange={(e) => onChange("payment_date", e.target.value)}
+                max={new Date().toISOString().split("T")[0]}
+                required
+              />
+            </PaymentInputWrapper>
+
+            {/* Pending Amount — read-only, this is what will be paid */}
+            <PaymentInputWrapper>
+              <PaymentLabel>Pending Amount</PaymentLabel>
+              <PaymentInput
+                type="number"
+                value={paymentDetails.pending_amount.toFixed(2)}
+                readOnly
+                style={{ backgroundColor: "#f1f5f9", cursor: "not-allowed" }}
+              />
+            </PaymentInputWrapper>
+
+            {/* Payment Method */}
+            <PaymentInputWrapper>
+              <PaymentLabel>Payment Method *</PaymentLabel>
+              <PaymentSelect
+                value={paymentDetails.payment_method}
+                onChange={(e) => onChange("payment_method", e.target.value)}
+                required
+              >
+                <option value="">Select Payment Method</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+              </PaymentSelect>
+            </PaymentInputWrapper>
+
+            {/* Extra detail field only for non-Cash methods */}
+            {["UPI", "Cheque", "Bank Transfer"].includes(
+              paymentDetails.payment_method,
+            ) && (
+              <PaymentInputWrapper>
+                <PaymentLabel>
+                  {paymentDetails.payment_method === "UPI"
+                    ? "UPI Transaction ID *"
+                    : paymentDetails.payment_method === "Cheque"
+                      ? "Cheque Number *"
+                      : "Transaction Details *"}
+                </PaymentLabel>
+                <PaymentInput
+                  type="text"
+                  value={paymentDetails.payment_details}
+                  onChange={(e) => onChange("payment_details", e.target.value)}
+                  placeholder={`Enter ${
+                    paymentDetails.payment_method === "UPI"
+                      ? "UPI Transaction ID"
+                      : paymentDetails.payment_method === "Cheque"
+                        ? "Cheque Number"
+                        : "Transaction Details"
+                  }`}
+                  required
+                />
+              </PaymentInputWrapper>
+            )}
+
+            <PaymentButtonContainer>
+              <CustomButton variant="cancel" onClick={onClose}>
+                Cancel
+              </CustomButton>
+              <CustomButton
+                variant="primary"
+                type="submit"
+                disabled={
+                  !isPaymentDirty ||
+                  !paymentDetails.payment_method ||
+                  !paymentDetails.payment_date
+                }
+              >
+                Pay
+              </CustomButton>
+            </PaymentButtonContainer>
+          </PaymentForm>
+        </PaymentModalContent>
+      </PaymentModalOverlay>
+    </Portal>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Main GRNReport component
+// ─────────────────────────────────────────────
 const GRNReport = () => {
   const [allData, setAllData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
@@ -59,7 +669,7 @@ const GRNReport = () => {
     from_date: new Date().toISOString().split("T")[0],
     to_date: new Date().toISOString().split("T")[0],
     search: "",
-    category: "ALL" // NEW: Added category filter
+    category: "ALL",
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -75,328 +685,251 @@ const GRNReport = () => {
     amount_paid: "",
     payment_method: "",
     payment_details: "",
+    payment_date: "",
     pending_amount: 0,
   });
   const [isPaymentDirty, setIsPaymentDirty] = useState(false);
+
   const navigate = useNavigate();
-  
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
-    const getCategoryTitle = () => {
-    switch(filters.category) {
+  const getCategoryTitle = () => {
+    switch (filters.category) {
       case "TRAVELLERS IN CASH":
         return "Travellers IN Cash GRN Report";
       case "TRAVELLERS IN CREDIT":
         return "Travellers IN Credit GRN Report";
       default:
-        return "Travellers INN GRN Report";
+        return "Travellers IN GRN Report";
     }
   };
-  // Payment Modal Handlers
-const handleOpenPaymentModal = (record) => {
-  setPaymentDetails({
-    grn_number: record.grn_number,
-    amount_paid: "",
-    payment_method: "",
-    payment_details: "",
-    payment_date: new Date().toISOString().split("T")[0], // Default to today
-    pending_amount: parseFloat(record.pending_amount || record.total_amount || 0),
-  });
-  setSelectedRecord(record);
-  setShowPaymentModal(true);
-  setIsPaymentDirty(false);
-};
 
-
-  const handlePaymentChange = (key, value) => {
-    setPaymentDetails((prev) => {
-      const updated = { ...prev, [key]: value };
-      if (key === "amount_paid") {
-        const amountPaid = parseFloat(value) || 0;
-        const pending_amount = parseFloat(prev.total_pending_amount || 0);
-      }
-      return updated;
-    });
-    setIsPaymentDirty(true); // Mark as dirty on change
-  };
-
-const convertToDateFormat = (dateStr) => {
-  if (!dateStr) return "";
-  const [year, month, day] = dateStr.split('-');
-  return `${day}/${month}/${year}`;
-};
-
-const handlePaymentSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!paymentDetails.amount_paid || parseFloat(paymentDetails.amount_paid) <= 0) {
-    toast.error("Please enter a valid payment amount");
-    return;
-  }
-  if (!paymentDetails.payment_method) {
-    toast.error("Please select a payment method");
-    return;
-  }
-  if (!paymentDetails.payment_date) {
-    toast.error("Please select a payment date");
-    return;
-  }
-  if (["UPI", "Cheque"].includes(paymentDetails.payment_method) && !paymentDetails.payment_details) {
-    toast.error(`Please provide payment details for ${paymentDetails.payment_method}`);
-    return;
-  }
-  if (parseFloat(paymentDetails.amount_paid) > parseFloat(selectedRecord.pending_amount || selectedRecord.total_amount)) {
-    toast.error("Payment amount cannot exceed pending amount");
-    return;
-  }
-
-  try {
-    const encodedGrnNumber = encodeURIComponent(paymentDetails.grn_number);
-    const totalPaid = (parseFloat(selectedRecord.total_amount_paid) || 0) + (parseFloat(paymentDetails.amount_paid) || 0);
-    const pendingAmount = parseFloat(selectedRecord.total_amount) - totalPaid;
-
-    const payload = {
-      amount_paid: parseFloat(paymentDetails.amount_paid),
-      payment_method: paymentDetails.payment_method,
-      payment_details: paymentDetails.payment_method === "Cash" ? null : paymentDetails.payment_details,
-      payment_date: convertToDateFormat(paymentDetails.payment_date), // Convert to dd/mm/yyyy format
-      status: pendingAmount <= 0 ? "Paid" : "Partially Paid",
-      pending_amount: pendingAmount,
-    };
-
-    const response = await apiRequest(
-      `${StoreTrustbaseurl}travellers-in/update-payment-status/?grn_number=${encodedGrnNumber}`,
-      "PATCH",
-      payload
-    );
-
-    if (response.success && response.data.status === "success") {
-      toast.success("Payment updated successfully");
-      setShowPaymentModal(false);
-      setIsPaymentDirty(false);
-      fetchAllData();
-    } else {
-      toast.error(response.error || response.data?.message || "Failed to update payment");
-    }
-  } catch (error) {
-    console.error("Error updating payment:", error);
-    toast.error("Network error while updating payment");
-  }
-};
-
-  const handleClosePaymentModal = () => {
-    if (isPaymentDirty && !window.confirm("You have unsaved changes. Are you sure you want to close?")) {
-      return;
-    }
-    setShowPaymentModal(false);
-    setIsPaymentDirty(false);
-  };
-
-const formatPaymentHistory = (paymentStatus) => {
-  if (!Array.isArray(paymentStatus) || paymentStatus.length === 0) {
-    return ["N/A", "N/A", "N/A"];
-  }
-  // Filter valid payments (with valid timestamp) and take the last 3
-  const validPayments = paymentStatus
-    .filter((payment) => payment.payment_date)
-    .slice(-3); // Get the last 3 valid entries
-  // Format payments
-const formattedPayments = validPayments.map((payment) => {
-    const date = payment.payment_date; // e.g., 2025-08-26
-    const amount = formatCurrency(payment.amount_paid);
-    const method = payment.payment_method || "N/A"; // Fallback if payment_method is missing
-    return `Date: ${date}<br />Paid: ${amount}<br />Method: ${method}`;
-  });
-  // Fill remaining slots with "No payment" to ensure exactly 3 entries
-  return [
-    ...formattedPayments,
-    ...Array(3 - formattedPayments.length).fill("N/A")
-  ];
-};
-
-  // Fetch previous purchases
-   const fetchPreviousPurchases = async (hsn, itemName) => {
-  setHistoryLoading(true);
-  try {
-    console.log(
-      `Fetching previous purchases for HSN: ${hsn}, Item: ${itemName}`
-    );
-
-    const encodedHsn = encodeURIComponent(hsn);
-    const encodedItemName = encodeURIComponent(itemName);
-
-    const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodedHsn}&item_name=${encodedItemName}`;
-
-    console.log("Request URL:", url);
-
-    const result = await apiRequest(url, "GET");
-
-    if (!result.success) {
-      console.error("API error:", result.error);
-      return [];
-    }
-
-    const data = result.data;
-    console.log("Previous purchases response:", data);
-
-    if (data.status === "success") {
-      return data.data || [];
-    } else {
-      console.error("API error:", data.message);
-      return [];
-    }
-  } catch (error) {
-    console.error("Unexpected error fetching previous purchases:", error);
-    return [];
-  } finally {
-    setHistoryLoading(false);
-  }
-};
-
-  const handleShowHistory = async (item) => {
-    const hsn = item.hsn?.toString().trim();
-    const itemName = item.name?.toString().trim();
-    if (!hsn || !itemName) {
-      toast.error("HSN and item name are required for history lookup");
-      return;
-    }
-    setSelectedItemForHistory({ hsn, name: itemName });
-    setShowHistoryModal(true);
-    const history = await fetchPreviousPurchases(hsn, itemName);
-    setHistoryData(history);
-  };
-
-  const fetchAllData = useCallback(async (page = 1, pageSize = 100) => {
-    setLoading(true);
-    try {
-      const response = await apiRequest(
-        `${StoreTrustbaseurl}travellers-in/list/?page=${page}&page_size=${pageSize}`,
-        "GET"
+  const formatPaymentHistory = (paymentStatus) => {
+    if (!Array.isArray(paymentStatus) || paymentStatus.length === 0)
+      return ["N/A", "N/A", "N/A"];
+    const valid = paymentStatus
+      .filter((p) => p.payment_date)
+      .slice(-3)
+      .map(
+        (p) =>
+          `Date: ${p.payment_date}<br />Paid: ${formatCurrency(p.amount_paid)}<br />Method: ${p.payment_method || "N/A"}`,
       );
-      if (!response.success) {
-        throw new Error(response.error || "API request failed");
-      }
-      if (response.data?.status !== "success") {
-        throw new Error(response.data?.message || "Backend returned an error");
-      }
-      if (!Array.isArray(response.data?.data)) {
-        throw new Error("Invalid data format: Expected an array");
-      }
-      
-const activeRecords = response.data.data.filter(
-  (record) => record.is_active === true || record.is_active === "true" || record.is_active === 1
-);
+    return [...valid, ...Array(3 - valid.length).fill("N/A")];
+  };
 
-      setAllData(activeRecords);
-      console.log("nn",response)
-      console.log("activeRecords",activeRecords)
-      setFilteredData(activeRecords);
-      if (activeRecords.length === 0) {
-        toast.info("No active records found");
+  // ── Fix 1: Remove is_active frontend filter in fetchAllData ──────────
+  const fetchAllData = useCallback(
+    async (page = 1, size = 100) => {
+      setLoading(true);
+      try {
+        const response = await apiRequest(
+          `${StoreTrustbaseurl}travellers-in/list/?from_date=${filters.from_date}&to_date=${filters.to_date}&page=${page}&page_size=${size}`,
+          "GET",
+        );
+        if (!response.success)
+          throw new Error(response.error || "API request failed");
+        if (response.data?.status !== "success")
+          throw new Error(response.data?.message || "Backend error");
+        if (!Array.isArray(response.data?.data))
+          throw new Error("Invalid data format");
+
+        // ✅ Removed is_active filter — field no longer exists on model
+        const records = response.data.data;
+        setAllData(records);
+        setFilteredData(records);
+        if (records.length === 0) toast.info("No records found");
+      } catch (error) {
+        toast.error(error.message || "Failed to fetch GRN records");
+        setAllData([]);
+        setFilteredData([]);
+      } finally {
+        setLoading(false);
       }
-    
-    } catch (error) {
-      console.error("Error fetching GRN data:", error.message);
-      toast.error(error.message || "Failed to fetch GRN records");
-      setAllData([]);
-      setFilteredData([]);
-    } finally {
-      setLoading(false);
+    },
+    // ✅ Fix 2: Add filters.from_date and filters.to_date as dependencies
+    // so fetchAllData re-runs when dates change
+    [StoreTrustbaseurl, filters.from_date, filters.to_date],
+  );
+
+  const fetchPreviousPurchases = async (item) => {
+    const hsn = String(item?.hsn ?? "").trim();
+    const item_id = String(item?.item_id ?? "").trim();
+
+    if (!item_id) {
+      toast.error("Please select an item first");
+      return;
     }
-  }, [StoreTrustbaseurl]);
+    if (!hsn) {
+      toast.error("HSN code is required");
+      return;
+    }
 
+    setSelectedItemForHistory({ ...item, hsn, item_id });
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodeURIComponent(hsn)}&item_id=${encodeURIComponent(item_id)}`;
+      const r = await apiRequest(url, "GET");
+      setHistoryData(
+        r.success && r.data?.status === "success" ? r.data.data || [] : [],
+      );
+    } catch {
+      setHistoryData([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // ── filters ───────────────────────────────────
   const applyFilters = useCallback(() => {
     let filtered = [...allData];
-     // NEW: Apply category filter
-    if (filters.category && filters.category !== "ALL") {
-      filtered = filtered.filter((item) => 
-        item.purchase_category?.toUpperCase() === filters.category
+
+    if (filters.category && filters.category !== "ALL")
+      filtered = filtered.filter(
+        (item) => item.purchase_category?.toUpperCase() === filters.category,
       );
-    }
-    if (filters.from_date) {
-      filtered = filtered.filter((item) => {
-        const itemDate = new Date(item.invoice_date);
-        const fromDate = new Date(filters.from_date);
-        return itemDate >= fromDate;
-      });
-    }
-    if (filters.to_date) {
-      filtered = filtered.filter((item) => {
-        const itemDate = new Date(item.invoice_date);
-        const toDate = new Date(filters.to_date);
-        return itemDate <= toDate;
-      });
-    }
+
+    // ✅ Removed from_date / to_date filtering here — backend already filters by date
+    // Only search filter remains for client-side filtering
+
     if (filters.search.trim()) {
-      const searchTerm = filters.search.toLowerCase().trim();
+      const term = filters.search.toLowerCase().trim();
       filtered = filtered.filter(
         (item) =>
-          item.grn_number?.toLowerCase().includes(searchTerm) ||
-          item.invoice_no?.toLowerCase().includes(searchTerm) ||
-          item.vendor?.toLowerCase().includes(searchTerm) ||
-          item.purchase_category?.toLowerCase().includes(searchTerm) ||
-          item.payment_details?.status?.toLowerCase().includes(searchTerm)
+          item.grn_number?.toLowerCase().includes(term) ||
+          item.invoice_no?.toLowerCase().includes(term) ||
+          item.vendor?.toLowerCase().includes(term) ||
+          item.purchase_category?.toLowerCase().includes(term) ||
+          item.payment_details?.status?.toLowerCase().includes(term),
       );
     }
+
     setFilteredData(filtered);
     setCurrentPage(1);
   }, [allData, filters]);
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key, value) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // const handleSearch = () => {
-  //   applyFilters();
-  // };
-
   const clearFilters = () => {
-    setFilters({
-      from_date: "",
-      to_date: "",
-      search: "",
-      category: "ALL"
-    });
+    setFilters({ from_date: "", to_date: "", search: "", category: "ALL" });
     setFilteredData(allData);
     setCurrentPage(1);
   };
 
-  const handleView = async (record) => {
+  // ── action handlers ───────────────────────────
+  const handleView = (record) => {
     setSelectedRecord(record);
     setShowModal(true);
   };
+  const handleEdit = (record) =>
+    navigate("/GRNGeneration", { state: { record } });
 
-const handleEdit = (record) => {
-  console.log("Edit record:", record);
-
-  // Pass record as state instead of params
-  navigate("/GRNGeneration", { state: { record } });
-};
-
-
-  const handleDelete = async (record) => {
-    if (!window.confirm(`Are you sure you want to delete GRN: ${record.grn_number}?`)) {
+  const handleShowHistory = async (item) => {
+    const hsn = item?.hsn?.toString().trim();
+    const item_id = item?.item_id?.toString().trim();
+    if (!hsn || !item_id) {
+      toast.error("HSN and item ID are required");
       return;
     }
-    try {
-      const encodedGrnNumber = encodeURIComponent(record.grn_number);
-      const response = await apiRequest(
-        `${StoreTrustbaseurl}travellers-in/delete/?grn_number=${encodedGrnNumber}`,
-        "PATCH",
-        {}
+    // fetchPreviousPurchases already handles setSelectedItemForHistory,
+    // setShowHistoryModal and setHistoryData internally — just call it
+    await fetchPreviousPurchases(item);
+  };
+  const closeHistoryModal = () => {
+    setShowHistoryModal(false);
+    setHistoryData([]);
+    setSelectedItemForHistory(null);
+  };
+
+  // ── payment handlers ──────────────────────────
+  const handleOpenPaymentModal = (record) => {
+    setPaymentDetails({
+      grn_number: record.grn_number,
+      amount_paid: "",
+      payment_method: "",
+      payment_details: "",
+      payment_date: new Date().toISOString().split("T")[0],
+      pending_amount: parseFloat(
+        record.pending_amount || record.total_amount || 0,
+      ),
+    });
+    setSelectedRecord(record);
+    setShowPaymentModal(true);
+    setIsPaymentDirty(false);
+  };
+
+  const handlePaymentChange = (key, value) => {
+    setPaymentDetails((prev) => ({ ...prev, [key]: value }));
+    setIsPaymentDirty(true);
+  };
+
+  const handleClosePaymentModal = () => {
+    if (
+      isPaymentDirty &&
+      !window.confirm(
+        "You have unsaved changes. Are you sure you want to close?",
+      )
+    )
+      return;
+    setShowPaymentModal(false);
+    setIsPaymentDirty(false);
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!paymentDetails.payment_method)
+      return toast.error("Please select a payment method");
+    if (!paymentDetails.payment_date)
+      return toast.error("Please select a payment date");
+    if (
+      ["UPI", "Cheque", "Bank Transfer"].includes(
+        paymentDetails.payment_method,
+      ) &&
+      !paymentDetails.payment_details
+    )
+      return toast.error(
+        `Please provide payment details for ${paymentDetails.payment_method}`,
       );
+
+    try {
+      // amount_paid is the full pending amount — status is always "Paid"
+      const payload = {
+        amount_paid: paymentDetails.pending_amount,
+        payment_method: paymentDetails.payment_method,
+        payment_details:
+          paymentDetails.payment_method === "Cash"
+            ? null
+            : paymentDetails.payment_details,
+        payment_date: convertToDateFormat(paymentDetails.payment_date), // DD/MM/YYYY
+        status: "Paid",
+        pending_amount: 0,
+      };
+
+      const response = await apiRequest(
+        `${StoreTrustbaseurl}travellers-in/update-payment-status/?grn_number=${encodeURIComponent(paymentDetails.grn_number)}`,
+        "PATCH",
+        payload,
+      );
+
       if (response.success && response.data.status === "success") {
-        toast.success("Record deleted successfully");
+        toast.success("Payment recorded successfully");
+        setShowPaymentModal(false);
+        setIsPaymentDirty(false);
         fetchAllData();
       } else {
-        toast.error(response.error || response.data?.message || "Failed to delete record");
+        toast.error(
+          response.error ||
+            response.data?.message ||
+            "Failed to update payment",
+        );
       }
-    } catch (error) {
-      console.error("Error deleting record:", error);
-      toast.error("Network error while deleting record");
+    } catch {
+      toast.error("Network error while updating payment");
     }
   };
 
+  // ── print / export ────────────────────────────
   const handleGRNPrint = (record) => {
     const printWindow = window.open("", "", "width=800,height=600");
     const printContent = `
@@ -450,7 +983,7 @@ const handleEdit = (record) => {
             <h1>SHANMUGA HOSPITAL LIMITED</h1>
             <div class="address">51/24.Saradha College Road, Salem - 636007,,</div>
             <div class="address">Phone : 04272706666,info@smrft.org</div>
-            <div class="address">GST Number :</div>
+            <div class="address">GSTIN : 33ABDCS8326A1ZP</div>
             <div class="document-title">GOODS RECEIPT NOTE - ${record.grn_number}</div>
           </div>
           <div class="invoice-details-grid">
@@ -506,8 +1039,9 @@ const handleEdit = (record) => {
               </div>
             </div>
           </div>
-          ${record.items && record.items.length > 0
-            ? `
+          ${
+            record.items && record.items.length > 0
+              ? `
           <table class="invoice-table">
             <thead>
               <tr>
@@ -531,7 +1065,7 @@ const handleEdit = (record) => {
                   (item, index) => `
                 <tr>
                   <td class="center-cell">${index + 1}.</td>
-                  <td class="product-cell">${item.name || "N/A"}</td>
+                  <td class="product-cell">${item.itemName || "N/A"}</td>
                   <td class="number-cell">${item.hsn || "N/A"}</td>
                   <td class="center-cell">${item.batch || "N/A"}</td>
                   <td class="center-cell">${item.packing || "1"}</td>
@@ -543,7 +1077,7 @@ const handleEdit = (record) => {
                   <td class="number-cell">₹${parseFloat(item.itemValue || item.purchaseCost || 0).toFixed(2)}</td>
                   <td class="number-cell">₹${parseFloat(item.purchaseCost || 0).toFixed(2)}</td>
                 </tr>
-              `
+              `,
                 )
                 .join("")}
               <tr class="total-row">
@@ -553,7 +1087,8 @@ const handleEdit = (record) => {
             </tbody>
           </table>
           `
-            : ""}
+              : ""
+          }
           <div class="invoice-summary">
             <div class="summary-layout">
               <div class="gst-amounts">
@@ -615,669 +1150,158 @@ const handleEdit = (record) => {
     printWindow.print();
   };
 
-
-// Updated exportToExcel function
-const exportToExcel = () => {
-  const headers = [
-    "Date",
-    "GRN Number",
-    "Vendor",
-    "Invoice No",
-    "Total Amount",
-    "Payment Status",
-    "Advance",
-    "Amount Paid",
-    "Pending Amount",
-  ];
-  const csvContent = [
-    headers.join(","),
-    ...filteredData.map((row) => {
-      // Get the last payment entry and format it properly
-      let advanceText = "N/A";
+  const exportToExcel = () => {
+    const headers = [
+      "Date",
+      "GRN Number",
+      "Vendor",
+      "Invoice No",
+      "Total Amount",
+      "Payment Status",
+      "Advance",
+      "Amount Paid",
+      "Pending Amount",
+    ];
+    const rows = filteredData.map((row) => {
+      let advance = "N/A";
       if (Array.isArray(row.payment_status) && row.payment_status.length > 0) {
-        const lastPayment = row.payment_status[row.payment_status.length - 1];
-        const paymentDate = lastPayment.payment_date || "N/A";
-        const paymentAmount = parseFloat(lastPayment.amount_paid || 0).toFixed(2);
-        const paymentMethod = lastPayment.payment_method || "N/A";
-        advanceText = `Date: ${paymentDate} | Paid: ${paymentAmount} | Method: ${paymentMethod}`;
+        const last = row.payment_status[row.payment_status.length - 1];
+        advance = `Date: ${last.payment_date || "N/A"} | Paid: ${parseFloat(last.amount_paid || 0).toFixed(2)} | Method: ${last.payment_method || "N/A"}`;
       }
-      
       return [
         formatDate(row.date),
         row.grn_number,
         row.vendor,
         row.invoice_no,
         parseFloat(row.total_amount || 0).toFixed(2),
-        row.payment_details?.status || row.payment_status || "N/A",
-        advanceText,
+        row.payment_details?.status || "N/A",
+        advance,
         parseFloat(row.total_amount_paid || 0).toFixed(2),
         parseFloat(row.pending_amount || 0).toFixed(2),
       ].join(",");
-    }),
-  ].join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const categoryName = filters.category === "ALL" ? "All" : filters.category.replace(/ /g, "_");
-  a.download = `GRN_Report_${categoryName}_${new Date().toISOString().split("T")[0]}.csv`;
-  a.click();
-  window.URL.revokeObjectURL(url);
-};
-
-// Updated handlePrint function
-const handlePrint = () => {
-  const printWindow = window.open("", "", "width=800,height=600");
-  
-  // Sort data alphabetically by vendor name
-  const sortedData = [...filteredData].sort((a, b) => {
-    const vendorA = (a.vendor || "").toLowerCase();
-    const vendorB = (b.vendor || "").toLowerCase();
-    return vendorA.localeCompare(vendorB);
-  });
-
-  // Group by vendor and calculate grand total
-  const vendorGroups = {};
-  let overallGrandTotal = 0;
-  sortedData.forEach((row) => {
-    const vendor = row.vendor || "N/A";
-    if (!vendorGroups[vendor]) {
-      vendorGroups[vendor] = {
-        rows: [],
-        grandTotal: 0
-      };
-    }
-    vendorGroups[vendor].rows.push(row);
-    const pendingAmount = parseFloat(row.pending_amount || 0);
-    vendorGroups[vendor].grandTotal += pendingAmount;
-    overallGrandTotal += pendingAmount;
-  });
-
-  let tableRows = "";
-
-  Object.keys(vendorGroups).forEach((vendor) => {
-    const group = vendorGroups[vendor];
-    const rowCount = group.rows.length;
-    
-    // Sort rows by GRN number in ascending order
-    group.rows.sort((a, b) => {
-      const grnA = a.grn_number || "";
-      const grnB = b.grn_number || "";
-      return grnA.localeCompare(grnB);
     });
-    
-    // Vendor header row (merged with Sl.No column)
-    tableRows += `
-      <tr style="background-color: #f0f0f0;" class="vendor-row">
-        <td colspan="9" style="font-weight: bold; vertical-align: middle; padding: 8px;">${vendor}</td>
-        <td rowspan="${rowCount + 1}" style="font-weight: bold; text-align: right; vertical-align: middle; background-color: #fff3cd;">${formatCurrency(group.grandTotal)}</td>
-      </tr>
-    `;
-    
-    // Detail rows for each GRN - reset slNo to 1 for each vendor
-    let slNo = 1;
-    group.rows.forEach((row) => {
-      const [payment1] = formatPaymentHistory(row.payment_status);
-      
-      tableRows += `
-        <tr class="grn-row">
-          <td style="white-space: nowrap; text-align: center; vertical-align: middle;">${slNo}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.grn_number || "N/A"}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.invoice_no || "N/A"}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${formatDate(row.invoice_date)}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount)}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: center;">${row.payment_details?.status || "N/A"}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: left;">${payment1}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.total_amount_paid)}</td>
-          <td style="white-space: nowrap; vertical-align: middle; text-align: right;">${formatCurrency(row.pending_amount)}</td>
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(
+      new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" }),
+    );
+    a.download = `GRN_Report_${filters.category === "ALL" ? "All" : filters.category.replace(/ /g, "_")}_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "", "width=800,height=600");
+    const sorted = [...filteredData].sort((a, b) =>
+      (a.vendor || "").localeCompare(b.vendor || ""),
+    );
+    const groups = {};
+    let grandTotal = 0;
+    sorted.forEach((row) => {
+      const v = row.vendor || "N/A";
+      if (!groups[v]) groups[v] = { rows: [], total: 0 };
+      groups[v].rows.push(row);
+      groups[v].total += parseFloat(row.pending_amount || 0);
+      grandTotal += parseFloat(row.pending_amount || 0);
+    });
+
+    let tableRows = "";
+    Object.keys(groups).forEach((vendor) => {
+      const g = groups[vendor];
+      g.rows.sort((a, b) =>
+        (a.grn_number || "").localeCompare(b.grn_number || ""),
+      );
+      tableRows += `<tr style="background:#f0f0f0"><td colspan="9" style="font-weight:bold;padding:8px">${vendor}</td><td rowspan="${g.rows.length + 1}" style="font-weight:bold;text-align:right;background:#fff3cd">${formatCurrency(g.total)}</td></tr>`;
+      g.rows.forEach((row, i) => {
+        const [p1] = formatPaymentHistory(row.payment_status);
+        tableRows += `<tr>
+          <td style="text-align:center">${i + 1}</td><td>${row.grn_number || "N/A"}</td>
+          <td>${row.invoice_no || "N/A"}</td><td>${formatDate(row.invoice_date)}</td>
+          <td style="text-align:right">${formatCurrency(row.total_amount)}</td>
+          <td>${row.payment_details?.status || "N/A"}</td><td>${p1}</td>
+          <td style="text-align:right">${formatCurrency(row.total_amount_paid)}</td>
+          <td style="text-align:right">${formatCurrency(row.pending_amount)}</td>
+        </tr>`;
+      });
+    });
+
+    const from = filters.from_date ? formatDate(filters.from_date) : "N/A";
+    const to = filters.to_date ? formatDate(filters.to_date) : "N/A";
+    const range = from === to ? from : `${from} to ${to}`;
+
+    printWindow.document.write(`<html><head><title>${getCategoryTitle()}</title>
+      <style>
+        @page{size:landscape;margin:10mm}
+        body{font-family:Arial,sans-serif;margin:0;padding:5px;font-size:18px}
+        h1{text-align:center;font-size:21px;margin:10px 0}
+        table{border-collapse:collapse;width:100%;font-size:18px;border:1px solid #333}
+        th,td{border:1px dashed #999;padding:5px 5px}
+        tr td:first-child,tr th:first-child{border-left:none}
+        tr td:last-child, tr th:last-child {border-right:none}
+        thead tr:first-child th{border-top:none}
+        th{background:#e0e0e0;font-weight:bold;text-align:center}
+        @media print{body{margin:0;padding:5px}tr{page-break-inside:avoid}}
+      </style></head><body>
+      <h1>${getCategoryTitle()} (${range})</h1>
+      <table><thead><tr>
+        <th>Sl. No</th><th>GRN Number</th><th>Invoice No</th><th>Inv. Date</th>
+        <th>Bill Amount</th><th>Payment Status</th><th>Advance (₹)</th>
+        <th>Amount Paid</th><th>Pending Amount</th><th>Grand Total</th>
+      </tr></thead><tbody>
+        ${tableRows}
+        <tr style="background:#d4edda;font-weight:bold">
+          <td colspan="9" style="text-align:right;font-size:18px">Gross Total:</td>
+          <td style="text-align:right;font-size:18px">${formatCurrency(grandTotal)}</td>
         </tr>
-      `;
-      slNo++; // Increment for each GRN row within this vendor
-    });
-  });
+      </tbody></table></body></html>`);
+    printWindow.document.close();
+    printWindow.print();
+  };
 
-  // Get date range for title
-  const fromDate = filters.from_date ? formatDate(filters.from_date) : "N/A";
-  const toDate = filters.to_date ? formatDate(filters.to_date) : "N/A";
-  const dateRange = fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`;
-
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>${getCategoryTitle()}</title>
-        <style>
-          @page {
-            size: landscape;
-            margin: 10mm;
-          }
-          
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 0;
-            padding: 10px;
-            font-size: 14px;
-          }
-          
-          h1 {
-            text-align: center;
-            font-size: 18px;
-            margin: 10px 0;
-            word-wrap: break-word;
-          }
-          
-          table { 
-            border-collapse: collapse; 
-            width: 100%; 
-            table-layout: auto;
-            font-size: 13px;
-            /* Solid border for table outline */
-            border: 1px solid #333;
-          }
-          
-          th, td { 
-            /* All internal borders are dashed */
-            border-left: 1px dashed #999;
-            border-right: 1px dashed #999;
-            border-top: 1px dashed #999;
-            border-bottom: 1px dashed #999;
-            padding: 8px 10px; 
-            text-align: left;
-            vertical-align: top;
-          }
-          
-          /* Remove left border from first cell to avoid double border with table outline */
-          tr td:first-child,
-          tr th:first-child {
-            border-left: none;
-          }
-          
-          /* Remove right border from last cell to avoid double border with table outline */
-          tr td:last-child,
-          tr th:last-child {
-            border-right: none;
-          }
-          
-          /* Remove top border from first row to avoid double border with table outline */
-          thead tr:first-child th {
-            border-top: none;
-          }
-          
-          /* Remove bottom border from last row to avoid double border with table outline */
-          tbody tr:last-child td {
-            border-bottom: none;
-          }
-          
-          th { 
-            background-color: #e0e0e0; 
-            font-weight: bold;
-            font-size: 13px;
-            word-wrap: break-word;
-            text-align: center;
-            max-width: 80px;
-          }
-          
-          td {
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-          }
-          
-          /* Landscape specific adjustments */
-          @media print and (orientation: landscape) {
-            body {
-              font-size: 13px;
-            }
-            table {
-              font-size: 12px;
-            }
-            th, td {
-              padding: 6px 8px;
-            }
-          }
-          
-          /* Portrait specific adjustments */
-          @media print and (orientation: portrait) {
-            body {
-              font-size: 12px;
-            }
-            table {
-              font-size: 11px;
-            }
-            th, td {
-              padding: 5px 6px;
-            }
-            h1 {
-              font-size: 16px;
-            }
-          }
-          
-          @media print {
-            body { 
-              margin: 0;
-              padding: 5px;
-            }
-            .no-print { 
-              display: none; 
-            }
-            table {
-              page-break-inside: auto;
-            }
-            tr {
-              page-break-inside: avoid;
-              page-break-after: auto;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <h1>${getCategoryTitle()} (${dateRange})</h1>
-        <table>
-          <thead>
-            <tr>
-              <th style="white-space: nowrap;">Sl. No</th>
-              <th>GRN Number</th>
-              <th>Invoice No</th>
-              <th>Inv.Date</th>
-              <th >Bill Amount</th>
-              <th>Payment Status</th>
-              <th>Advance (₹)</th>
-              <th>Amount Paid</th>
-              <th>Pending Amount</th>
-              <th>Grand Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows}
-            <tr style="background-color: #d4edda; font-weight: bold;">
-              <td colspan="9" style="text-align: right; padding: 8px; font-size: 14px;">Gross Total:</td>
-              <td style="text-align: right; padding: 8px; font-size: 14px;">${formatCurrency(overallGrandTotal)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.print();
-};
-  const totalPages = Math.ceil(filteredData.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const currentData = filteredData.slice(startIndex, endIndex);
-
+  // ── effects ───────────────────────────────────
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
-
   useEffect(() => {
     applyFilters();
   }, [applyFilters]);
 
-  // HistoryModal Component
-  const HistoryModal = ({ show, onClose, item, historyData, loading }) => {
-    if (!show || !item) return null;
+  // ── pagination ────────────────────────────────
+  const totalPages = Math.ceil(filteredData.length / pageSize);
+  const currentData = filteredData.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
-    const getPriceStats = () => {
-      if (!historyData || historyData.length === 0) return { min: 0, max: 0, avg: 0 };
-      const prices = historyData.map((historyItem) => {
-        const itemData = historyItem.matched_item || {};
-        return parseFloat(itemData.unitPrice || 0);
-      });
-      const min = Math.min(...prices);
-      const max = Math.max(...prices);
-      const avg = prices.reduce((sum, price) => sum + price, 0) / prices.length;
-      return { min, max, avg };
-    };
-
-    const priceStats = getPriceStats();
-
-    const calculateTotalStock = () => {
-      if (!historyData || historyData.length === 0) return 0;
-      return historyData.reduce((total, historyItem) => {
-        const itemData = historyItem.matched_item || {};
-        return total + parseInt(itemData.totalstock || 0);
-      }, 0);
-    };
-
-    const totalStock = calculateTotalStock();
-
-    console.log("historyData:", historyData);
-
-    return (
-      <HistoryModalOverlay onClick={onClose}>
-        <HistoryModalContent onClick={(e) => e.stopPropagation()}>
-          <HistoryModalHeader>
-            <HistoryModalTitle>
-              Purchase History - {item.name} (HSN: {item.hsn}) - Total Stock: {totalStock}
-              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
-                Price Range: ₹{priceStats.min.toFixed(2)} - ₹{priceStats.max.toFixed(2)} | Avg: ₹{priceStats.avg.toFixed(2)}
-              </div>
-            </HistoryModalTitle>
-            <CustomButton variant="cancel" onClick={onClose}>
-              <X size={20} />
-            </CustomButton>
-          </HistoryModalHeader>
-          {loading ? (
-            <div style={{ textAlign: "center", padding: "40px" }}>
-              <LoadingSpinner />
-              <LoadingText>Loading history...</LoadingText>
-            </div>
-          ) : historyData.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#6b7280" }}>
-              No previous purchase history found for this item.
-            </div>
-          ) : (
-            <HistoryTable>
-              <HistoryTableHeader>
-                <HistoryTableRow>
-                  <HistoryTableHeaderCell>GRN Number</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Date</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Vendor</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>HSN</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Item Name</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Unit Price</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Purchase Cost</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Quantity</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Free</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Stock</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>Batch</HistoryTableHeaderCell>
-                  <HistoryTableHeaderCell>MRP</HistoryTableHeaderCell>
-                  {/* <HistoryTableHeaderCell>Payment Status</HistoryTableHeaderCell> */}
-                  {/* <HistoryTableHeaderCell>Amount Paid</HistoryTableHeaderCell> */}
-                </HistoryTableRow>
-              </HistoryTableHeader>
-              <tbody>
-                {historyData.map((historyItem, index) => {
-                  const itemData = historyItem.matched_item || {};
-                  const unitPrice = parseFloat(itemData.unitPrice || 0);
-                  const isHighPrice = unitPrice === priceStats.max && priceStats.max > priceStats.min;
-                  const isLowPrice = unitPrice === priceStats.min && priceStats.max > priceStats.min;
-
-                  const paymentStatus = historyItem.payment_details?.status || "N/A";
-                  const amountPaid = parseFloat(historyItem.payment_details?.amount_paid || 0).toLocaleString("en-IN", {
-                    minimumFractionDigits: 2,
-                  });
-
-                  return (
-                    <HistoryTableRow key={index}>
-                      <HistoryTableCell>{historyItem.grn_number || "N/A"}</HistoryTableCell>
-                      <HistoryTableCell>{new Date(historyItem.date).toLocaleDateString("en-IN")}</HistoryTableCell>
-                      <HistoryTableCell>{historyItem.vendor_name || "N/A"}</HistoryTableCell>
-                      <HistoryTableCell>{itemData.hsn || "N/A"}</HistoryTableCell>
-                      <HistoryTableCell>{itemData.name || "N/A"}</HistoryTableCell>
-                      <HistoryTableCell isPriceColumn={true} isHighPrice={isHighPrice} isLowPrice={isLowPrice}>
-                        ₹{unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </HistoryTableCell>
-                      <HistoryTableCell>
-                        ₹{parseFloat(itemData.purchaseCost || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </HistoryTableCell>
-                      <HistoryTableCell>{itemData.quantity || "N/A"}</HistoryTableCell>
-                      <HistoryTableCell>{itemData.free || "0"}</HistoryTableCell>
-                      <HistoryTableCell>{itemData.totalstock || "0"}</HistoryTableCell>
-                      <HistoryTableCell>{itemData.batch || "-"}</HistoryTableCell>
-                      <HistoryTableCell>
-                        ₹{parseFloat(itemData.mrp || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </HistoryTableCell>
-                      {/* <HistoryTableCell>{paymentStatus}</HistoryTableCell> */}
-                      {/* <HistoryTableCell>₹{amountPaid}</HistoryTableCell> */}
-                    </HistoryTableRow>
-                  );
-                })}
-              </tbody>
-            </HistoryTable>
-          )}
-        </HistoryModalContent>
-      </HistoryModalOverlay>
-    );
-  };
-
-  // EnhancedViewModal Component
-  const EnhancedViewModal = ({ showModal, selectedRecord, onClose, onShowHistory }) => {
-    if (!showModal || !selectedRecord) return null;
-    return (
-     <ModalOverlay onClick={onClose} style={{ zIndex: 100 }}>
-        <ModalContent onClick={(e) => e.stopPropagation()}>
-          <ModalScrollContainer>
-            <ModalHeader>
-              <ModalTitle>GRN Details - {selectedRecord.grn_number || "N/A"}</ModalTitle>
-              <CustomButton variant="cancel" onClick={onClose}>
-                <X size={20} />
-              </CustomButton>
-            </ModalHeader>
-            <ModalBody>
-              {/* Basic Information */}
-              <DetailSection>
-                <DetailSectionTitle>📊 Basic Information</DetailSectionTitle>
-                <DetailGrid>
-                  <DetailItem>
-                    <DetailLabel>GRN Number</DetailLabel>
-                    <DetailValue>{selectedRecord.grn_number || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Purchase Category</DetailLabel>
-                    <DetailValue>{selectedRecord.purchase_category || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Vendor</DetailLabel>
-                    <DetailValue>{selectedRecord.vendor || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Date</DetailLabel>
-                    <DetailValue>{formatDate(selectedRecord.date)}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Contact Person</DetailLabel>
-                    <DetailValue>{selectedRecord.contact_person || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Phone</DetailLabel>
-                    <DetailValue>{selectedRecord.phone || "N/A"}</DetailValue>
-                  </DetailItem>
-                </DetailGrid>
-              </DetailSection>
-
-              {/* Invoice Information */}
-              <DetailSection>
-                <DetailSectionTitle>🧾 Invoice Information</DetailSectionTitle>
-                <DetailGrid>
-                  <DetailItem>
-                    <DetailLabel>Invoice Number</DetailLabel>
-                    <DetailValue>{selectedRecord.invoice_no || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Invoice Date</DetailLabel>
-                    <DetailValue>{formatDate(selectedRecord.invoice_date)}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Credit Period</DetailLabel>
-                    <DetailValue>{selectedRecord.credit_period || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Due Date</DetailLabel>
-                    <DetailValue>{formatDate(selectedRecord.due_date)}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Payment Method</DetailLabel>
-                    <DetailValue>{selectedRecord.payment_details?.payment_method || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Payment Status</DetailLabel>
-                    <DetailValue>
-                      <CustomBadge status={selectedRecord.payment_details?.status || "N/A"}>
-                        {selectedRecord.payment_details?.status || "N/A"}
-                      </CustomBadge>
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Amount Paid</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.payment_details?.amount_paid)}
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Pending Amount</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.payment_details?.pending_amount || selectedRecord.pending_amount)}
-                    </DetailValue>
-                  </DetailItem>
-                </DetailGrid>
-              </DetailSection>
-
-              {/* Financial Information */}
-              <DetailSection>
-                <DetailSectionTitle>💰 Financial Breakdown</DetailSectionTitle>
-                <DetailGrid>
-                  <DetailItem>
-                    <DetailLabel>Non-Taxable Amount</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.non_taxable_amount)}
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Taxable Amount</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.taxable_amount)}
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>CGST</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.cgst)}
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>SGST</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.sgst)}
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>IGST</DetailLabel>
-                    <DetailValue className="currency">
-                      {formatCurrency(selectedRecord.igst)}
-                    </DetailValue>
-                  </DetailItem>
-                  <DetailItem style={{ background: "linear-gradient(135deg, #f0f9ff, #e0f2fe)", border: "2px solid #0284c7", boxShadow: "0 8px 25px rgba(2, 132, 199, 0.15)" }}>
-                    <DetailLabel style={{ color: "#0284c7", fontWeight: "bold" }}>Total Amount</DetailLabel>
-                    <DetailValue style={{ fontSize: "18px", fontWeight: "700", color: "#0284c7" }}>
-                      {formatCurrency(selectedRecord.total_amount)}
-                    </DetailValue>
-                  </DetailItem>
-                </DetailGrid>
-              </DetailSection>
-              <DetailSection>
-              
-              
-<ItemsSection>
-  <DetailSectionTitle>📦 Items Details</DetailSectionTitle>
-  <ItemsTable>
-    <ItemsTableHeader>
-      <ItemsTableRow>
-        <ItemsTableHeaderCell>Item Name</ItemsTableHeaderCell>
-        <ItemsTableHeaderCell>HSN</ItemsTableHeaderCell>
-        <ItemsTableHeaderCell>Quantity</ItemsTableHeaderCell>
-        <ItemsTableHeaderCell>Unit Cost</ItemsTableHeaderCell>
-        <ItemsTableHeaderCell>Purchase Cost</ItemsTableHeaderCell>
-        <ItemsTableHeaderCell>History</ItemsTableHeaderCell>
-      </ItemsTableRow>
-    </ItemsTableHeader>
-    <tbody>
-      {selectedRecord.items?.length > 0 ? (
-        selectedRecord.items.map((item, index) => (
-          <ItemsTableRow key={index}>
-            <ItemsTableCell>{item.name || item.item_name || "N/A"}</ItemsTableCell>
-            <ItemsTableCell>{item.hsn || item.hsn_code || "N/A"}</ItemsTableCell>
-            <ItemsTableCell>{item.quantity || item.qty || "N/A"}</ItemsTableCell>
-            <ItemsTableCell>{formatCurrency(item.unitPrice || item.unit_cost || 0)}</ItemsTableCell>
-            <ItemsTableCell>{formatCurrency(item.purchaseCost || item.purchase_cost || 0)}</ItemsTableCell>
-            <ItemsTableCell>
-              <HistoryButton onClick={() => handleShowHistory(item)}>
-                <History size={14} /> History
-              </HistoryButton>
-            </ItemsTableCell>
-          </ItemsTableRow>
-        ))
-      ) : (
-        <ItemsTableRow>
-          <ItemsTableCell colSpan="6" style={{ textAlign: "center" }}>
-            No items found
-          </ItemsTableCell>
-        </ItemsTableRow>
-      )}
-    </tbody>
-  </ItemsTable>
-</ItemsSection>
-
-          
-              </DetailSection>
-
-              <DetailSection>
-                <DetailSectionTitle>📝 Additional Details</DetailSectionTitle>
-                <DetailGrid>
-<DetailItem>
-  <DetailLabel>Address</DetailLabel>
-  <DetailValue>
-    {[
-      selectedRecord.addressLine1,
-      selectedRecord.addressLine2,
-      selectedRecord.city,
-      selectedRecord.state,
-      selectedRecord.address,
-    ]
-      .filter(Boolean)
-      .join(", ")
-      .replace(/, /g, ",\n") || "N/A"}
-  </DetailValue>
-</DetailItem>
-
-                  <DetailItem>
-                    <DetailLabel>Remarks</DetailLabel>
-                    <DetailValue>{selectedRecord.remarks || "N/A"}</DetailValue>
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Created By</DetailLabel>
-                    <DetailValue>
-  {selectedRecord.created_by && selectedRecord.created_by_id
-    ? `${selectedRecord.created_by} (ID: ${selectedRecord.created_by_id})`
-    : selectedRecord.created_by || "N/A"}
-</DetailValue>
-
-                  </DetailItem>
-                  <DetailItem>
-                    <DetailLabel>Created Date</DetailLabel>
-                    <DetailValue>{formatDateTime(selectedRecord.created_date)}</DetailValue>
-                  </DetailItem>
-                </DetailGrid>
-              </DetailSection>
-            </ModalBody>
-          </ModalScrollContainer>
-        </ModalContent>
-      </ModalOverlay>
-    );
-  };
-
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
   return (
     <Container>
       <Header>
         <Title>{getCategoryTitle()}</Title>
-        {/* <Subtitle>Manage and view all GRN records</Subtitle> */}
       </Header>
+
+      {/* ── Filters ── */}
       <FiltersSection>
         <FiltersGrid>
           <FilterGroup>
             <Label>From Date</Label>
             <InputWrapper>
-              <IconWrapper><Calendar /></IconWrapper>
+              <IconWrapper></IconWrapper>
               <Input
                 type="date"
                 value={filters.from_date}
-                onChange={(e) => handleFilterChange("from_date", e.target.value)}
+                onChange={(e) =>
+                  handleFilterChange("from_date", e.target.value)
+                }
               />
             </InputWrapper>
           </FilterGroup>
+
           <FilterGroup>
             <Label>To Date</Label>
             <InputWrapper>
-              <IconWrapper><Calendar /></IconWrapper>
+              <IconWrapper></IconWrapper>
               <Input
                 type="date"
                 value={filters.to_date}
@@ -1285,7 +1309,7 @@ const handlePrint = () => {
               />
             </InputWrapper>
           </FilterGroup>
-           {/* NEW: Category Dropdown */}
+
           <FilterGroup>
             <Label>Purchase Category</Label>
             <InputWrapper>
@@ -1295,14 +1319,17 @@ const handlePrint = () => {
               >
                 <option value="ALL">All Categories</option>
                 <option value="TRAVELLERS IN CASH">TRAVELLERS IN CASH</option>
-                <option value="TRAVELLERS IN CREDIT">TRAVELLERS IN CREDIT</option>
+                <option value="TRAVELLERS IN CREDIT">
+                  TRAVELLERS IN CREDIT
+                </option>
               </PaymentSelect>
             </InputWrapper>
           </FilterGroup>
+
           <FilterGroup>
             <Label>Search</Label>
             <InputWrapper>
-              <IconWrapper><Search /></IconWrapper>
+              <IconWrapper></IconWrapper>
               <Input
                 type="text"
                 placeholder="GRN No, Invoice No, Vendor..."
@@ -1311,15 +1338,18 @@ const handlePrint = () => {
               />
             </InputWrapper>
           </FilterGroup>
+
           <ButtonGroup>
             <ButtonContainer>
-              {/* <CustomButton variant="primary" onClick={handleSearch}>Search</CustomButton> */}
-              <CustomButton variant="secondary" onClick={clearFilters}>Clear</CustomButton>
+              <CustomButton variant="secondary" onClick={clearFilters}>
+                Clear
+              </CustomButton>
             </ButtonContainer>
           </ButtonGroup>
         </FiltersGrid>
       </FiltersSection>
 
+      {/* ── Actions bar ── */}
       <ActionsSection>
         <RecordsInfo>
           <RecordsText>
@@ -1338,6 +1368,7 @@ const handlePrint = () => {
         </ButtonContainer>
       </ActionsSection>
 
+      {/* ── Table ── */}
       <TableContainer>
         {loading ? (
           <LoadingContainer>
@@ -1345,70 +1376,126 @@ const handlePrint = () => {
             <LoadingText>Loading...</LoadingText>
           </LoadingContainer>
         ) : (
-<TableWrapper>
-  <Table id="report-table">
-    <thead>
-      <TableRow>
-        <Th style={{whiteSpace:"nowrap"}}>Date</Th>
-        <Th style={{whiteSpace:"nowrap"}}>GRN Number</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Purchase Category</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Vendor</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Invoice Date</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Invoice No</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Total Amount</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Payment Status</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Advance</Th>
-        {/* <Th style={{whiteSpace:"nowrap"}}>Payment 2</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Payment 3</Th> */}
-        <Th style={{whiteSpace:"nowrap"}}>Amount Paid</Th>
-        <Th style={{whiteSpace:"nowrap"}}>Pending Amount</Th>
-           <Th className="no-print" style={{whiteSpace:"nowrap"}}>Actions</Th>
-      </TableRow>
-    </thead>
-    <TableBody>
-      {currentData.length === 0 ? (
-        <TableRow>
-          <Td colSpan="13">No records found</Td>
-        </TableRow>
-      ) : (
-        currentData.map((row, index) => {
-          const [payment1, payment2, payment3] = formatPaymentHistory(row.payment_status);
-          return (
-            <TableRow key={row.grn_number || index}>
-              <Td style={{whiteSpace:"nowrap"}}>{formatDate(row.date)}</Td>
-              <Td>{row.grn_number || "N/A"}</Td>
-              <Td>{row.purchase_category || "N/A"}</Td>
-              <Td>{row.vendor || "N/A"}</Td>
-              <Td>{formatDate(row.invoice_date)}</Td>
-              <Td>{row.invoice_no || "N/A"}</Td>
-              <Td>{formatCurrency(row.total_amount)}</Td>
-              <Td style={{whiteSpace:"nowrap"}}>
-                <CustomBadge status={row.payment_details?.status || "N/A"}>
-                  {row.payment_details?.status || "N/A"}
-                </CustomBadge>
-              </Td>
-              <Td dangerouslySetInnerHTML={{ __html: payment1 }} />
-              {/* <Td dangerouslySetInnerHTML={{ __html: payment2 }} />
-              <Td dangerouslySetInnerHTML={{ __html: payment3 }} /> */}
-              <Td>{formatCurrency(row.total_amount_paid)}</Td>
-              <Td>{formatCurrency(row.pending_amount)}</Td>
-              <Td className="no-print" style={{whiteSpace:"nowrap"}}>
-                <TableActionButton onClick={() => handleView(row)}><Eye size={16} /></TableActionButton>
-                <TableActionButton onClick={() => handleEdit(row)}><Edit3 size={16} /></TableActionButton>
-                <TableActionButton onClick={() => handleDelete(row)}><Trash2 size={16} /></TableActionButton>
-                <TableActionButton onClick={() => handleOpenPaymentModal(row)}><CreditCard size={16} /></TableActionButton>
-                <TableActionButton onClick={() => handleGRNPrint(row)}><Printer size={16} /></TableActionButton>
-              </Td>
-            </TableRow>
-          );
-        })
-      )}
-    </TableBody>
-  </Table>
-</TableWrapper>
-
+          <TableWrapper>
+            <Table id="report-table">
+              <thead>
+                <TableRow>
+                  {[
+                    "Date",
+                    "GRN Number",
+                    "Purchase Category",
+                    "Vendor",
+                    "Invoice Date",
+                    "Invoice No",
+                    "Total Amount",
+                    "Payment Status",
+                    "Advance",
+                    "Amount Paid",
+                    "Pending Amount",
+                  ].map((col) => (
+                    <Th key={col} style={{ whiteSpace: "nowrap" }}>
+                      {col}
+                    </Th>
+                  ))}
+                  <Th className="no-print" style={{ whiteSpace: "nowrap" }}>
+                    Actions
+                  </Th>
+                </TableRow>
+              </thead>
+              <TableBody>
+                {currentData.length === 0 ? (
+                  <TableRow>
+                    <Td colSpan="12">No records found</Td>
+                  </TableRow>
+                ) : (
+                  currentData.map((row, index) => {
+                    const [payment1] = formatPaymentHistory(row.payment_status);
+                    return (
+                      <TableRow key={row.grn_number || index}>
+                        <Td style={{ whiteSpace: "nowrap" }}>
+                          {formatDate(row.date)}
+                        </Td>
+                        <Td>{row.grn_number || "N/A"}</Td>
+                        <Td>{row.purchase_category || "N/A"}</Td>
+                        <Td>{row.vendor || "N/A"}</Td>
+                        <Td>{formatDate(row.invoice_date)}</Td>
+                        <Td>{row.invoice_no || "N/A"}</Td>
+                        <Td>{formatCurrency(row.net_invoice_amount)}</Td>
+                        <Td style={{ whiteSpace: "nowrap" }}>
+                          <CustomBadge
+                            status={row.payment_details?.status || "N/A"}
+                          >
+                            {row.payment_details?.status || "N/A"}
+                          </CustomBadge>
+                        </Td>
+                        <Td dangerouslySetInnerHTML={{ __html: payment1 }} />
+                        <Td>{formatCurrency(row.total_amount_paid)}</Td>
+                        <Td>{formatCurrency(row.pending_amount)}</Td>
+                        <Td
+                          className="no-print"
+                          style={{ whiteSpace: "nowrap" }}
+                        >
+                          <TableActionButton onClick={() => handleView(row)}>
+                            <Eye size={16} />
+                          </TableActionButton>
+                          <TableActionButton
+                            onClick={() =>
+                              row.overall_status !== "Paid" && handleEdit(row)
+                            }
+                            disabled={row.overall_status === "Paid"}
+                            title={
+                              row.overall_status === "Paid"
+                                ? "Cannot edit a paid record"
+                                : "Edit"
+                            }
+                            style={{
+                              opacity: row.overall_status === "Paid" ? 0.4 : 1,
+                              cursor:
+                                row.overall_status === "Paid"
+                                  ? "not-allowed"
+                                  : "pointer",
+                            }}
+                          >
+                            <Edit3 size={16} />
+                          </TableActionButton>
+                          <TableActionButton
+                            onClick={() =>
+                              row.overall_status !== "Paid" &&
+                              handleOpenPaymentModal(row)
+                            }
+                            disabled={row.overall_status === "Paid"}
+                            title={
+                              row.overall_status === "Paid"
+                                ? "Already Paid"
+                                : "Record Payment"
+                            }
+                            style={{
+                              opacity: row.overall_status === "Paid" ? 0.4 : 1,
+                              cursor:
+                                row.overall_status === "Paid"
+                                  ? "not-allowed"
+                                  : "pointer",
+                            }}
+                          >
+                            <CreditCard size={16} />
+                          </TableActionButton>
+                          <TableActionButton
+                            onClick={() => handleGRNPrint(row)}
+                          >
+                            <Printer size={16} />
+                          </TableActionButton>
+                        </Td>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </TableWrapper>
         )}
       </TableContainer>
+
+      {/* ── Pagination ── */}
       <PaginationSection>
         <PaginationLeft>
           <PaginationText>Rows per page:</PaginationText>
@@ -1418,11 +1505,15 @@ const handlePrint = () => {
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            style={{ padding: "4px", borderRadius: "4px", border: "1px solid #d1d5db" }}
+            style={{
+              padding: "4px",
+              borderRadius: "4px",
+              border: "1px solid #d1d5db",
+            }}
           >
-            {[10, 20, 50, 100].map((size) => (
-              <option key={size} value={size}>
-                {size}
+            {[10, 20, 50, 100].map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
@@ -1430,14 +1521,16 @@ const handlePrint = () => {
         <PaginationRight>
           <PaginationControls>
             <PaginationButton
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
               disabled={currentPage === 1}
             >
               <ChevronLeft size={16} />
             </PaginationButton>
-            <PaginationText>{currentPage} of {totalPages}</PaginationText>
+            <PaginationText>
+              {currentPage} of {totalPages}
+            </PaginationText>
             <PaginationButton
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
               disabled={currentPage === totalPages}
             >
               <ChevronRight size={16} />
@@ -1446,140 +1539,29 @@ const handlePrint = () => {
         </PaginationRight>
       </PaginationSection>
 
-<EnhancedViewModal
-  showModal={showModal}
-  selectedRecord={selectedRecord}
-  onClose={() => setShowModal(false)}
-  onShowHistory={handleShowHistory} // pass handler
-/>
+      {/* ── Modals — portalled above sidebar ── */}
+      <EnhancedViewModal
+        showModal={showModal}
+        selectedRecord={selectedRecord}
+        onClose={() => setShowModal(false)}
+        onShowHistory={handleShowHistory}
+      />
 
-<HistoryModal
-  show={showHistoryModal}
-  onClose={() => {
-    setShowHistoryModal(false);
-    setHistoryData([]);
-    setSelectedItemForHistory(null);
-  }}
-  item={selectedItemForHistory}
-  historyData={historyData}
-  loading={historyLoading}
-  style={{ zIndex: 200 }} // always higher than EnhancedViewModal
-/>
-
-
-      {showPaymentModal && (
-  <PaymentModalOverlay onClick={handleClosePaymentModal}>
-    <PaymentModalContent onClick={(e) => e.stopPropagation()}>
-      <PaymentModalHeader>
-        <PaymentModalTitle>Update Payment - {paymentDetails.grn_number}</PaymentModalTitle>
-        <CustomButton variant="cancel" onClick={handleClosePaymentModal}>
-          <X size={20} />
-        </CustomButton>
-      </PaymentModalHeader>
-      <PaymentForm onSubmit={handlePaymentSubmit}>
-        <PaymentInputWrapper>
-          <PaymentLabel>Payment Date *</PaymentLabel>
-          <PaymentInput
-            type="date"
-            value={paymentDetails.payment_date}
-            onChange={(e) => handlePaymentChange("payment_date", e.target.value)}
-            max={new Date().toISOString().split("T")[0]}
-            required
-          />
-        </PaymentInputWrapper>
-        <PaymentInputWrapper>
-          <PaymentLabel>Amount Paid *</PaymentLabel>
-          <PaymentInput
-            type="number"
-            value={paymentDetails.amount_paid}
-            onChange={(e) => handlePaymentChange("amount_paid", e.target.value)}
-            placeholder="Enter amount"
-            min="0"
-            step="0.01"
-            required
-          />
-        </PaymentInputWrapper>
-        <PaymentInputWrapper>
-          <PaymentLabel>Payment Method *</PaymentLabel>
-          <PaymentSelect
-            value={paymentDetails.payment_method}
-            onChange={(e) => handlePaymentChange("payment_method", e.target.value)}
-            required
-          >
-            <option value="">Select Payment Method</option>
-            <option value="Cash">Cash</option>
-            <option value="UPI">UPI</option>
-            <option value="Cheque">Cheque</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-          </PaymentSelect>
-        </PaymentInputWrapper>
-        {["UPI", "Cheque", "Bank Transfer"].includes(paymentDetails.payment_method) && (
-          <PaymentInputWrapper>
-            <PaymentLabel>
-              {paymentDetails.payment_method === "UPI"
-                ? "UPI Transaction ID *"
-                : paymentDetails.payment_method === "Cheque"
-                ? "Cheque Number *"
-                : "Transaction Details *"}
-            </PaymentLabel>
-            <PaymentInput
-              type="text"
-              value={paymentDetails.payment_details}
-              onChange={(e) => handlePaymentChange("payment_details", e.target.value)}
-              placeholder={`Enter ${
-                paymentDetails.payment_method === "UPI"
-                  ? "UPI Transaction ID"
-                  : paymentDetails.payment_method === "Cheque"
-                  ? "Cheque Number"
-                  : "Transaction Details"
-              }`}
-              required
-            />
-          </PaymentInputWrapper>
-        )}
-        <PaymentInputWrapper>
-          <PaymentLabel>Pending Amount</PaymentLabel>
-          <PaymentInput
-            type="number"
-            value={paymentDetails.pending_amount.toFixed(2)}
-            readOnly
-            style={{ backgroundColor: "#f1f5f9", cursor: "not-allowed" }}
-          />
-        </PaymentInputWrapper>
-        <PaymentButtonContainer>
-          <CustomButton variant="cancel" onClick={handleClosePaymentModal}>
-            Cancel
-          </CustomButton>
-          <CustomButton
-            variant="primary"
-            type="submit"
-            disabled={!isPaymentDirty || !paymentDetails.amount_paid || !paymentDetails.payment_method || !paymentDetails.payment_date}
-          >
-            Submit Payment
-          </CustomButton>
-        </PaymentButtonContainer>
-      </PaymentForm>
-    </PaymentModalContent>
-  </PaymentModalOverlay>
-)}
-            {showModal && selectedRecord && (
-        <EnhancedViewModal
-          showModal={showModal}
-          selectedRecord={selectedRecord}
-          onClose={() => setShowModal(false)}
-        />
-      )}
-      {/* History Modal */}
       <HistoryModal
         show={showHistoryModal}
-        onClose={() => {
-          setShowHistoryModal(false);
-          setHistoryData([]);
-          setSelectedItemForHistory(null);
-        }}
+        onClose={closeHistoryModal}
         item={selectedItemForHistory}
         historyData={historyData}
         loading={historyLoading}
+      />
+
+      <PaymentModal
+        show={showPaymentModal}
+        paymentDetails={paymentDetails}
+        isPaymentDirty={isPaymentDirty}
+        onClose={handleClosePaymentModal}
+        onChange={handlePaymentChange}
+        onSubmit={handlePaymentSubmit}
       />
     </Container>
   );

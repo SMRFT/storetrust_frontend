@@ -1,20 +1,16 @@
 import React, { useEffect } from "react";
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-} from "react-router-dom";
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import styled from "styled-components";
 import Sidebar from "./Components/Sidebar"; // Import your sidebar component
 import TravellersIN from "./Components/TravellersIN/TravellersIN";
 import TravellersIntent from "./Components/TravellersIN/TravellersIntent";
-import TravellersIntentReport from "./Components/TravellersIN/TravellersIntentReport";
+import TravellersIntentApproval from "./Components/TravellersIN/TravellersIntentApproval";
 import CollegeIN from "./Components/College/CollegeIN";
 import CollegeIntent from "./Components/College/CollegeIntent";
 import CollegeIntentReport from "./Components/College/CollegeIntentReport";
-import MessIN from "./Components/Mess/MessIN";      
+import MessIN from "./Components/Mess/MessIN";
 import MessIntent from "./Components/Mess/MessIntent";
 import MessIntentReport from "./Components/Mess/MessIntentReport";
 import CollegeGRNReport from "./Components/College/CollegeGRNReport";
@@ -25,8 +21,7 @@ import AddVendor from "./Components/InventoryMaster/AddVendor";
 import NotificationBell from "./Components/Notifications";
 import ItemManagement from "./Components/InventoryManagement/ItemManagement";
 import VendorManagement from "./Components/InventoryManagement/VendorManagement";
-
-
+import LowStockList from "./Components/LowStockList";
 
 const AppContainer = styled.div`
   display: flex;
@@ -54,9 +49,8 @@ const App = () => {
   }, []);
 
   return (
-    
     <AppContainer>
-            {/* Add ToastContainer once at the top level */}
+      {/* Add ToastContainer once at the top level */}
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -74,25 +68,33 @@ const App = () => {
       <Sidebar />
       <ContentWrapper>
         <Routes>
-          
-          
           {/* All routes are accessible, but sidebar controls navigation */}
           <Route path="/GRNGeneration" element={<TravellersIN />} />
           <Route path="/TravellersIntent" element={<TravellersIntent />} />
-          <Route path="/TravellersIntentReport" element={<TravellersIntentReport />} /> 
+          <Route
+            path="/TravellersIntentApproval"
+            element={<TravellersIntentApproval />}
+          />
           <Route path="/AddItems" element={<AddItems />} />
           <Route path="/AddVendor" element={<AddVendor />} />
           <Route path="/CollegeGRNReport" element={<CollegeGRNReport />} />
-          <Route path="/CollegeIN" element={<CollegeIN />} />       
+          <Route path="/CollegeIN" element={<CollegeIN />} />
           <Route path="/CollegeIntent" element={<CollegeIntent />} />
-          <Route path="/CollegeIntentReport" element={<CollegeIntentReport />} />
+          <Route
+            path="/CollegeIntentReport"
+            element={<CollegeIntentReport />}
+          />
           <Route path="/MessGRNReport" element={<MessGRNReport />} />
-          <Route path="/MessIN" element={<MessIN />} /> 
+          <Route path="/MessIN" element={<MessIN />} />
           <Route path="/MessIntent" element={<MessIntent />} />
           <Route path="/MessIntentReport" element={<MessIntentReport />} />
-          <Route path="/TravellersINGRNReport" element={<TravellersINGRNReport />} />
-                  <Route path="/ItemManagement" element={<ItemManagement />} />
-                            <Route path="/VendorManagement" element={<VendorManagement />} />
+          <Route
+            path="/TravellersINGRNReport"
+            element={<TravellersINGRNReport />}
+          />
+          <Route path="/ItemManagement" element={<ItemManagement />} />
+          <Route path="/VendorManagement" element={<VendorManagement />} />
+          <Route path="/LowStockList" element={<LowStockList />} />
         </Routes>
       </ContentWrapper>
     </AppContainer>

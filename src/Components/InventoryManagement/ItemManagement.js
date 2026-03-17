@@ -1,146 +1,143 @@
 import React, { useEffect, useState } from "react";
-import { FiEdit, FiTrash2, FiSearch } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiSearch, FiPlus } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+import apiRequest from "../apiRequest";
+import {
+  colors,
+  Container,
+  TableWrapper,
+  Table,
+  Th,
+  Td,
+  Tr,
+  Button,
+  Input,
+} from "../StyledComponents";
 import styled from "styled-components";
-import apiRequest from "../apiRequest"; // Axios wrapper
 
-// Theme colors
-export const primaryColor = "#662549";   // deep plum
-export const backgroundColor = "#fcefee"; // soft blush background
-export const textColor = "#2e1a23";       // dark plum for readability
-export const accentColor = "#b35478";     // muted rose accent
+// ─── Page-specific styles ─────────────────────────────────────────────────────
 
-// Styled Table
-const Table = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  background: ${backgroundColor};
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 10px rgba(102, 37, 73, 0.15);
-  font-size: 14px;
-  color: ${textColor};
-`;
-
-// Table Header
-const Th = styled.th`
-  padding: 12px;
-  border-bottom: 2px solid ${accentColor};
-  background: ${primaryColor};
-  color: #fff;
-  font-weight: 600;
-  text-align: left;
-  letter-spacing: 0.3px;
-`;
-
-// Table Data Cell
-const Td = styled.td`
-  padding: 10px;
-  border-bottom: 1px solid rgba(179, 84, 120, 0.25);
-  background: #fff;
-  color: ${textColor};
-  transition: background 0.2s ease;
-
-  &:nth-child(even) {
-    background: ${backgroundColor};
-  }
-
-  tr:hover & {
-    background: rgba(179, 84, 120, 0.05);
-  }
-`;
-
-// Action Buttons (Edit / Delete Icons)
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  margin-right: 8px;
-  font-size: 16px;
-  color: ${(props) => props.color || accentColor};
-  transition: transform 0.2s ease, color 0.2s ease;
-
-  &:hover {
-    transform: scale(1.2);
-    color: ${primaryColor};
-  }
-`;
-
-// Input Fields
-const Input = styled.input`
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid ${accentColor};
-  border-radius: 6px;
-  font-size: 13px;
-  color: ${textColor};
-  background: #fff;
-  transition: all 0.2s ease;
-
-  &:focus {
-    outline: none;
-    border-color: ${primaryColor};
-    box-shadow: 0 0 4px rgba(102, 37, 73, 0.4);
-  }
-
-  &::placeholder {
-    color: #b07a8c;
-  }
-`;
-
-// Search Container
-const SearchContainer = styled.div`
-  margin-bottom: 20px;
+const PageHeader = styled.div`
+  background: linear-gradient(
+    135deg,
+    ${colors.primary} 0%,
+    ${colors.primaryDark} 100%
+  );
+  color: white;
+  padding: 14px 22px;
+  border-radius: 8px 8px 0 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
-  max-width: 400px;
 `;
 
-// Search Input
-const SearchInput = styled(Input)`
-  flex: 1;
-  padding: 10px 12px 10px 40px;
-  font-size: 14px;
+const PageTitle = styled.h1`
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
 `;
 
-// Search Icon Wrapper
-const SearchIconWrapper = styled.div`
+const ContentArea = styled.div`
+  padding: 16px;
+  background: ${colors.background};
+`;
+
+const SearchBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  max-width: 380px;
   position: relative;
-  flex: 1;
-  
+
   svg {
     position: absolute;
-    left: 12px;
+    left: 10px;
     top: 50%;
     transform: translateY(-50%);
-    color: ${accentColor};
-    font-size: 16px;
+    color: ${colors.textMuted};
+    font-size: 15px;
+    pointer-events: none;
   }
 `;
 
-// Header Container
-const HeaderContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  
-  h2 {
-    margin: 0;
-    color: ${primaryColor};
+const SearchInput = styled(Input)`
+  padding-left: 32px;
+  font-size: 0.82rem;
+`;
+
+const ActionBtn = styled.button`
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+  margin-right: 4px;
+
+  &.edit {
+    color: ${colors.primary};
+    &:hover {
+      background: ${colors.tabBg};
+    }
+  }
+  &.del {
+    color: ${colors.danger};
+    &:hover {
+      background: #fee2e2;
+    }
+  }
+  &.save {
+    color: ${colors.success};
+    &:hover {
+      background: #dcfce7;
+    }
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  &.cancel {
+    color: ${colors.textMuted};
+    &:hover {
+      background: ${colors.tabBg};
+    }
+    font-size: 0.78rem;
   }
 `;
+
+const StockBadge = styled.span`
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: ${(p) => (p.low ? colors.danger : colors.success)};
+  background: ${(p) => (p.low ? "#fee2e2" : "#dcfce7")};
+  padding: 2px 8px;
+  border-radius: 12px;
+`;
+
+const InlineInput = styled(Input)`
+  min-width: 80px;
+  font-size: 0.78rem;
+  padding: 3px 6px;
+`;
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const ItemManagement = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({});
-  
+
   const StoreTrustBaseUrl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
-  // Fetch items
   const fetchItems = async () => {
     try {
       const res = await apiRequest(`${StoreTrustBaseUrl}get_items/`, "GET");
@@ -157,49 +154,47 @@ const ItemManagement = () => {
     fetchItems();
   }, []);
 
-  // Search filter effect
   useEffect(() => {
     if (searchQuery.trim() === "") {
       setFilteredItems(items);
     } else {
-      const filtered = items.filter((item) =>
-        item.itemName?.toLowerCase().includes(searchQuery.toLowerCase())
+      const q = searchQuery.toLowerCase();
+      setFilteredItems(
+        items.filter((item) => item.itemName?.toLowerCase().includes(q)),
       );
-      setFilteredItems(filtered);
     }
   }, [searchQuery, items]);
 
-  // Calculate stock (total_quantity - approved_quantity)
-  const calculateStock = (item) => {
-    const total = item.total_quantity || 0;
-    const approved = item.approved_quantity || 0;
-    return total - approved;
-  };
+  const calculateStock = (item) =>
+    (item.total_quantity || 0) +
+    (item.openingStock || 0) -
+    (item.approved_quantity || 0);
 
-  // Delete item (soft delete)
-  const handleDelete = async (id) => {
+  const handleDelete = async (item) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
-      // DELETE request to backend
-      await apiRequest(`${StoreTrustBaseUrl}delete_item/${id}/`, "PATCH");
-
-      // Remove from frontend state immediately
-      setItems((prevItems) => prevItems.filter((item) => item._id !== id));
+      await apiRequest(
+        `${StoreTrustBaseUrl}delete_item/${item.item_id}/`,
+        "PATCH",
+      );
+      setItems((prev) => prev.filter((i) => i.item_id !== item.item_id));
     } catch (err) {
       console.error("Delete failed", err);
     }
   };
 
-  // Edit
   const handleEdit = (item) => {
     setEditingItem(item._id || item.id);
     setForm({ ...item });
   };
 
-  // Save
   const handleSave = async () => {
     try {
-      await apiRequest(`${StoreTrustBaseUrl}update_item/${editingItem}/`, "PATCH", form);
+      await apiRequest(
+        `${StoreTrustBaseUrl}update_item/${form.item_id}/`,
+        "PATCH",
+        { ...form, openingStock: parseInt(form.openingStock || 0, 10) },
+      );
       setEditingItem(null);
       setForm({});
       fetchItems();
@@ -211,140 +206,225 @@ const ItemManagement = () => {
   const handleChange = (field, value) => setForm({ ...form, [field]: value });
 
   return (
-    <div>
-      <HeaderContainer>
-        <h2>Item Management</h2>
-      </HeaderContainer>
-      
-      {/* Search Filter */}
-      <SearchContainer>
-        <SearchIconWrapper>
+    <Container>
+      {/* ── Page Header ── */}
+      <PageHeader>
+        <PageTitle>📦 Item Management</PageTitle>
+        <Button
+          onClick={() => navigate("/AddItems")}
+          style={{ fontSize: "0.82rem", padding: "6px 14px" }}
+        >
+          <FiPlus size={14} /> Add Item
+        </Button>
+      </PageHeader>
+
+      <ContentArea>
+        {/* ── Search ── */}
+        <SearchBar>
           <FiSearch />
           <SearchInput
             type="text"
-            placeholder="Search by Item Name..."
+            placeholder="Search by Item Name…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-        </SearchIconWrapper>
-      </SearchContainer>
+        </SearchBar>
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>Item Name</Th>
-            <Th>Stock</Th>
-            <Th>Group</Th>
-            <Th>Category</Th>
-            <Th>Classification</Th>
-            <Th>HSN</Th>
-            <Th>Stock Reorder Level</Th>
-            <Th>Actions</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredItems.length === 0 ? (
-            <tr>
-              <td colSpan={8} style={{ textAlign: "center", padding: "20px" }}>
-                {searchQuery ? "No items found matching your search" : "No items found"}
-              </td>
-            </tr>
-          ) : (
-            filteredItems.map((item) => {
-              const id = item._id || item.id;
-              const isEditing = editingItem === id;
-              const stock = calculateStock(item);
-              
-              return (
-                <tr key={id}>
-                  <Td>
-                    {isEditing ? (
-                      <Input 
-                        value={form.itemName || ""} 
-                        onChange={(e) => handleChange("itemName", e.target.value)} 
-                      />
-                    ) : (
-                      item.itemName
-                    )}
+        {/* ── Table ── */}
+        <TableWrapper style={{ marginTop: 0 }}>
+          <Table>
+            <thead>
+              <Tr>
+                <Th>#</Th>
+                <Th>Item Name</Th>
+                <Th>Opening Stock</Th>
+                <Th>Stock</Th>
+                <Th>Group</Th>
+                <Th>Category</Th>
+                <Th>Classification</Th>
+                <Th>HSN</Th>
+                <Th>Reorder Level</Th>
+                <Th>Actions</Th>
+              </Tr>
+            </thead>
+            <tbody>
+              {filteredItems.length === 0 ? (
+                <Tr>
+                  <Td
+                    colSpan={9}
+                    style={{
+                      textAlign: "center",
+                      padding: 28,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {searchQuery
+                      ? "No items found matching your search"
+                      : "No items found"}
                   </Td>
-                  <Td style={{ fontWeight: "600", color: stock < (item.stockReorderLevel || 0) ? "#d9534f" : "#5cb85c" }}>
-                    {stock}
-                  </Td>
-                  <Td>
-                    {isEditing ? (
-                      <Input 
-                        value={form.group || ""} 
-                        onChange={(e) => handleChange("group", e.target.value)} 
-                      />
-                    ) : (
-                      item.group
-                    )}
-                  </Td>
-                  <Td>
-                    {isEditing ? (
-                      <Input 
-                        value={form.Category || ""} 
-                        onChange={(e) => handleChange("Category", e.target.value)} 
-                      />
-                    ) : (
-                      item.Category
-                    )}
-                  </Td>
-                  <Td>
-                    {isEditing ? (
-                      <Input 
-                        value={form.classification || ""} 
-                        onChange={(e) => handleChange("classification", e.target.value)} 
-                      />
-                    ) : (
-                      item.classification
-                    )}
-                  </Td>
-                  <Td>
-                    {isEditing && (!item.hsn || item.hsn.trim() === "") ? (
-                      <Input
-                        value={form.hsn || ""}
-                        onChange={(e) => handleChange("hsn", e.target.value)}
-                        placeholder="Enter HSN code"
-                      />
-                    ) : (
-                      item.hsn || ""
-                    )}
-                  </Td>
-                  <Td>
-                    {isEditing ? (
-                      <Input 
-                        value={form.stockReorderLevel || ""} 
-                        onChange={(e) => handleChange("stockReorderLevel", e.target.value)} 
-                      />
-                    ) : (
-                      item.stockReorderLevel
-                    )}
-                  </Td>
-                  <Td>
-                    {isEditing ? (
-                      <>
-                        <ActionButton color="green" onClick={handleSave}>✅ Save</ActionButton>
-                        <ActionButton color="gray" onClick={() => setEditingItem(null)}>❌ Cancel</ActionButton>
-                      </>
-                    ) : (
-                      <>
-                        <ActionButton color="blue" onClick={() => handleEdit(item)}>
-                          <FiEdit />
-                        </ActionButton>
-                        <ActionButton color="red" onClick={() => handleDelete(id)}>
-                          <FiTrash2 />
-                        </ActionButton>
-                      </>
-                    )}
-                  </Td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </Table>
-    </div>
+                </Tr>
+              ) : (
+                filteredItems.map((item, idx) => {
+                  const id = item._id || item.id;
+                  const isEditing = editingItem === id;
+                  const stock = calculateStock(item);
+                  const isLow = stock < (item.stockReorderLevel || 0);
+
+                  return (
+                    <Tr key={id}>
+                      <Td
+                        style={{ color: colors.textMuted, fontSize: "0.78rem" }}
+                      >
+                        {idx + 1}
+                      </Td>
+
+                      <Td style={{ fontWeight: 600, minWidth: 140 }}>
+                        {isEditing ? (
+                          <InlineInput
+                            value={form.itemName || ""}
+                            onChange={(e) =>
+                              handleChange("itemName", e.target.value)
+                            }
+                          />
+                        ) : (
+                          item.itemName
+                        )}
+                      </Td>
+
+                      <Td>
+                        {isEditing ? (
+                          <InlineInput
+                            value={form.openingStock || ""}
+                            onChange={(e) =>
+                              handleChange("openingStock", e.target.value)
+                            }
+                          />
+                        ) : (
+                          item.openingStock || "—"
+                        )}
+                      </Td>
+                      <Td>
+                        <StockBadge low={isLow}>{stock}</StockBadge>
+                      </Td>
+
+                      <Td>
+                        {isEditing ? (
+                          <InlineInput
+                            value={form.group || ""}
+                            onChange={(e) =>
+                              handleChange("group", e.target.value)
+                            }
+                          />
+                        ) : (
+                          item.group || "—"
+                        )}
+                      </Td>
+
+                      <Td>
+                        {isEditing ? (
+                          <InlineInput
+                            value={form.category || ""}
+                            onChange={(e) =>
+                              handleChange("category", e.target.value)
+                            }
+                          />
+                        ) : (
+                          item.category || "—"
+                        )}
+                      </Td>
+
+                      <Td>
+                        {isEditing ? (
+                          <InlineInput
+                            value={form.classification || ""}
+                            onChange={(e) =>
+                              handleChange("classification", e.target.value)
+                            }
+                          />
+                        ) : (
+                          item.classification || "—"
+                        )}
+                      </Td>
+
+                      <Td>
+                        {isEditing && (!item.hsn || item.hsn.trim() === "") ? (
+                          <InlineInput
+                            value={form.hsn || ""}
+                            onChange={(e) =>
+                              handleChange("hsn", e.target.value)
+                            }
+                            placeholder="Enter HSN"
+                          />
+                        ) : (
+                          item.hsn || "—"
+                        )}
+                      </Td>
+
+                      <Td>
+                        {isEditing ? (
+                          <InlineInput
+                            value={form.stockReorderLevel || ""}
+                            onChange={(e) =>
+                              handleChange("stockReorderLevel", e.target.value)
+                            }
+                          />
+                        ) : (
+                          item.stockReorderLevel || "—"
+                        )}
+                      </Td>
+
+                      <Td style={{ whiteSpace: "nowrap" }}>
+                        {isEditing ? (
+                          <>
+                            <ActionBtn className="save" onClick={handleSave}>
+                              ✅ Save
+                            </ActionBtn>
+                            <ActionBtn
+                              className="cancel"
+                              onClick={() => setEditingItem(null)}
+                            >
+                              ❌ Cancel
+                            </ActionBtn>
+                          </>
+                        ) : (
+                          <>
+                            <ActionBtn
+                              className="edit"
+                              onClick={() => handleEdit(item)}
+                            >
+                              <FiEdit />
+                            </ActionBtn>
+                            <ActionBtn
+                              className="del"
+                              onClick={() => handleDelete(item)}
+                            >
+                              <FiTrash2 />
+                            </ActionBtn>
+                          </>
+                        )}
+                      </Td>
+                    </Tr>
+                  );
+                })
+              )}
+            </tbody>
+          </Table>
+        </TableWrapper>
+
+        {/* Record count */}
+        {filteredItems.length > 0 && (
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: "0.78rem",
+              color: colors.textMuted,
+            }}
+          >
+            Showing {filteredItems.length} of {items.length} items
+          </div>
+        )}
+      </ContentArea>
+    </Container>
   );
 };
 

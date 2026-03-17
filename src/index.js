@@ -58,14 +58,11 @@ function getUserRole(allowedActions) {
     return "Admin";
   } else if (allowedActions.includes("STR-R-EMP")) {
     return "Employee";
-  } 
-  else if (allowedActions.includes("STR-R-SM")) {
+  } else if (allowedActions.includes("STR-R-SM")) {
     return "Store Manager";
-  }
-   else if (allowedActions.includes("STR-R-ACT")) {
+  } else if (allowedActions.includes("STR-R-ACT")) {
     return "Accounts";
-  }
-  else {
+  } else {
     return "Admin"; // Default role if none of the specific roles are found
   }
 }
@@ -82,7 +79,7 @@ function getUserRole(allowedActions) {
     // If no token found, try development token
     if (!accessToken) {
       console.log(
-        "❌ No token found in localStorage, trying development token"
+        "❌ No token found in localStorage, trying development token",
       );
       accessToken = setforlocaldev();
     }
@@ -120,7 +117,7 @@ function getUserRole(allowedActions) {
 
     if (!isLoggedIn) {
       throw new Error(
-        "Missing required user data (employeeId or employeeName)"
+        "Missing required user data (employeeId or employeeName)",
       );
     }
 
@@ -145,7 +142,7 @@ function getUserRole(allowedActions) {
     root.render(
       <React.StrictMode>
         <App />
-      </React.StrictMode>
+      </React.StrictMode>,
     );
 
     reportWebVitals();

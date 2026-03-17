@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   SidebarContainer,
+  SidebarOverlay,
+  MobileMenuToggle,
   SidebarMenu,
   SidebarItem,
   SidebarNavLink,
@@ -11,304 +13,252 @@ import {
   SubMenu,
   SubLink,
   Logo,
+  MainContent,
 } from "./StyledComponents";
 
-import { FaCaretDown, FaClipboardList } from "react-icons/fa";
+import { FaCaretDown, FaClipboardList, FaBars, FaTimes } from "react-icons/fa";
 
-const Sidebar = () => {
-  const [isTravellersDropdown, setIsTravellersDropdown] = useState(false);
-  const [isCollegeDropdown, setIsCollegeDropdown] = useState(false);
-  const [isMessDropdown, setIsMessDropdown] = useState(false);
-  const [isInventoryDropdown, setIsInventoryDropdown] = useState(false);
+// ─────────────────────────────────────────────────────────────────────────────
+// Role → accessible routes map
+// ─────────────────────────────────────────────────────────────────────────────
+const ROLE_ROUTES = {
+  Admin: [
+    "/GRNGeneration",
+    "/TravellersIntent",
+    "/TravellersIntentApproval",
+    "/TravellersINGRNReport",
+    "/LowStockList",
+    "/AddItems",
+    "/AddVendor",
+    "/ItemManagement",
+    "/VendorManagement",
+  ],
+  "Store Manager": [
+    "/GRNGeneration",
+    "/TravellersIntentApproval",
+    "/TravellersINGRNReport",
+    "/LowStockList",
+    "/ItemManagement",
+    "/VendorManagement",
+  ],
+  Accounts: ["/TravellersINGRNReport"],
+  Employee: ["/TravellersIntent"],
+};
+
+const ROLE_DEFAULTS = {
+  Admin: "/TravellersINGRNReport",
+  "Store Manager": "/GRNGeneration",
+  Accounts: "/TravellersINGRNReport",
+  Employee: "/TravellersIntent",
+};
+
+const TRAVELLERS_ROUTES = [
+  "/GRNGeneration",
+  "/TravellersIntent",
+  "/TravellersIntentApproval",
+  "/TravellersINGRNReport",
+];
+
+const INVENTORY_ROUTES = [
+  "/ItemManagement",
+  "/VendorManagement",
+  "/LowStockList",
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar Component
+// ─────────────────────────────────────────────────────────────────────────────
+const Sidebar = ({ children }) => {
+  const [isTravellersOpen, setIsTravellersOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Get user role from localStorage and handle initial navigation
+  // ── Derive active states from current path ──────────────────────────────
+  const isTravellersActive = TRAVELLERS_ROUTES.includes(location.pathname);
+  const isInventoryActive = INVENTORY_ROUTES.includes(location.pathname);
+
+  // ── Role init + default redirect ───────────────────────────────────────
   useEffect(() => {
-    const role = localStorage.getItem("role") || "Employee"; // Default to Employee
+    const role = localStorage.getItem("role") || "Employee";
     setUserRole(role);
-    // console.log("User role from localStorage:", role);
 
-    // Redirect user to appropriate default route based on role if they're on root
     if (location.pathname === "/") {
-      let defaultRoute;
-      if (role === "Admin") {
-        defaultRoute = "/TravellersINGRNReport";
-      } else if (role === "Store Manager") {
-        defaultRoute = "/GRNGeneration";
-      } else if (role === "Accounts") {
-        defaultRoute = "/TravellersINGRNReport";
-      } else {
-        defaultRoute = "/TravellersIntent";
-      }
-      navigate(defaultRoute, { replace: true });
+      navigate(ROLE_DEFAULTS[role] ?? "/TravellersIntent", { replace: true });
     }
-  }, [location.pathname, navigate]);
+  }, []); // run once on mount
 
-  // Redirect if user tries to access unauthorized route
+  // ── Guard: redirect to default if accessing unauthorized route ──────────
   useEffect(() => {
-    if (userRole && location.pathname !== "/") {
-      const hasAccess = checkRouteAccess(location.pathname, userRole);
-      if (!hasAccess) {
-        let defaultRoute;
-        if (userRole === "Admin") {
-          defaultRoute = "/TravellersINGRNReport";
-        } else if (userRole === "Store Manager") {
-          defaultRoute = "/GRNGeneration";
-        } else if (userRole === "Accounts") {
-          defaultRoute = "/TravellersINGRNReport";
-        } else {
-          defaultRoute = "/TravellersIntent";
-        }
-        navigate(defaultRoute, { replace: true });
-      }
+    if (!userRole || location.pathname === "/") return;
+    const allowed = ROLE_ROUTES[userRole] ?? ROLE_ROUTES.Employee;
+    if (!allowed.includes(location.pathname)) {
+      navigate(ROLE_DEFAULTS[userRole] ?? "/TravellersIntent", {
+        replace: true,
+      });
     }
   }, [location.pathname, userRole, navigate]);
 
-  // Function to check if user has access to a route
-  const checkRouteAccess = (route, role) => {
-    switch (role) {
-      case "Admin":
-        return [
-          "/GRNGeneration",
-          "/TravellersIntent",
-          "/TravellersIntentReport",
-          "/TravellersINGRNReport",
-          "/AddItems",
-          "/AddVendor",
-          "/ItemManagement",
-          "/VendorManagement",
-        ].includes(route);
-      case "Store Manager":
-        return [
-          "/GRNGeneration",
-          "/TravellersIntentReport",
-          "/TravellersINGRNReport",
-          "/ItemManagement",
-          "/VendorManagement",
-        ].includes(route);
-      case "Accounts":
-        return ["/TravellersINGRNReport"].includes(route);
-      case "Employee":
-        return ["/TravellersIntent"].includes(route);
-      default:
-        return ["/TravellersIntent"].includes(route);
-    }
-  };
+  // ── Close mobile sidebar on route change ───────────────────────────────
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
-  const toggleTravellers = () => {
-    setIsTravellersDropdown(!isTravellersDropdown);
-  };
+  // ── Auto-open dropdowns if a child route is active ─────────────────────
+  useEffect(() => {
+    if (isTravellersActive) setIsTravellersOpen(true);
+    if (isInventoryActive) setIsInventoryOpen(true);
+  }, [isTravellersActive, isInventoryActive]);
 
-  const toggleInventory = () => setIsInventoryDropdown(!isInventoryDropdown);
+  // ── Menu renderers per role ────────────────────────────────────────────
+  const TravellersDropdown = ({ links }) => (
+    <SidebarItem>
+      <DropdownButton
+        onClick={() => setIsTravellersOpen((v) => !v)}
+        active={isTravellersActive}
+      >
+        <FaClipboardList />
+        <span style={{ flex: 1 }}>Travellers</span>
+        <DropdownIcon open={isTravellersOpen}>
+          <FaCaretDown />
+        </DropdownIcon>
+      </DropdownButton>
+      {isTravellersOpen && (
+        <SubMenu>
+          {links.map(({ to, label }) => (
+            <SubLink key={to} to={to}>
+              {label}
+            </SubLink>
+          ))}
+        </SubMenu>
+      )}
+    </SidebarItem>
+  );
 
-  const isTravellersActive =
-    location.pathname === "/GRNGeneration" ||
-    location.pathname === "/TravellersIntent" ||
-    location.pathname === "/TravellersIntentReport" ||
-    location.pathname === "/TravellersINGRNReport";
+  const InventoryDropdown = () => (
+    <SidebarItem>
+      <DropdownButton
+        onClick={() => setIsInventoryOpen((v) => !v)}
+        active={isInventoryActive}
+      >
+        <FaClipboardList />
+        <span style={{ flex: 1 }}>Inventory Management</span>
+        <DropdownIcon open={isInventoryOpen}>
+          <FaCaretDown />
+        </DropdownIcon>
+      </DropdownButton>
+      {isInventoryOpen && (
+        <SubMenu>
+          <SubLink to="/ItemManagement">Item Management</SubLink>
+          <SubLink to="/VendorManagement">Vendor Management</SubLink>
+          <SubLink to="/LowStockList">Low Stock List</SubLink>
+        </SubMenu>
+      )}
+    </SidebarItem>
+  );
 
-  const toggleCollege = () => {
-    setIsCollegeDropdown(!isCollegeDropdown);
-  };
-
-  const isCollegeActive =
-    location.pathname === "/CollegeIN" ||
-    location.pathname === "/CollegeIntent" ||
-    location.pathname === "/CollegeIntentReport" ||
-    location.pathname === "/CollegeGRNReport";
-
-  const toggleMess = () => {
-    setIsMessDropdown(!isMessDropdown);
-  };
-
-  const isMessActive =
-    location.pathname === "/,MessIN" ||
-    location.pathname === "/MessIntent" ||
-    location.pathname === "/MessIntentReport" ||
-    location.pathname === "/MessGRNReport";
-
-  // Check if any travellers route is active
-  const isInventoryActive =
-    location.pathname === "/ItemManagement" ||
-    location.pathname === "/VendorManagement";
-
-  // Function to render menu items based on user role
-  const renderMenuItems = () => {
+  const renderMenu = () => {
     switch (userRole) {
       case "Admin":
         return (
           <>
-            <SidebarItem>
-              {/* Travellers */}
-              <DropdownButton
-                onClick={toggleTravellers}
-                active={isTravellersActive}
-              >
-                <FaClipboardList />
-                <span>Travellers</span>
-                <DropdownIcon open={isTravellersDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isTravellersDropdown && (
-                <SubMenu>
-                  <SubLink to="/TravellersIntent">
-                    <span>Travellers Intent</span>
-                  </SubLink>
-                  <SubLink to="/TravellersIntentReport">
-                    <span>Travellers Intent Report</span>
-                  </SubLink>
-                  <SubLink to="/GRNGeneration">
-                    <span>GRN Generation</span>
-                  </SubLink>
-                  <SubLink to="/TravellersINGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-
-              {/* Inventory Management */}
-              <DropdownButton
-                onClick={toggleInventory}
-                active={isInventoryActive}
-              >
-                <FaClipboardList />
-                <span>Inventory Management</span>
-                <DropdownIcon open={isInventoryDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isInventoryDropdown && (
-                <SubMenu>
-                  <SubLink to="/ItemManagement">
-                    <span>Item Management</span>
-                  </SubLink>
-                  <SubLink to="/VendorManagement">
-                    <span>Vendor Management</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
+            <TravellersDropdown
+              links={[
+                { to: "/TravellersIntent", label: "Travellers Intent" },
+                {
+                  to: "/TravellersIntentApproval",
+                  label: "Travellers Intent Approval",
+                },
+                { to: "/GRNGeneration", label: "GRN Generation" },
+                { to: "/TravellersINGRNReport", label: "GRN Report" },
+              ]}
+            />
+            <InventoryDropdown />
           </>
         );
 
       case "Store Manager":
         return (
           <>
-            <SidebarItem>
-              {/* Travellers */}
-              <DropdownButton
-                onClick={toggleTravellers}
-                active={isTravellersActive}
-              >
-                <FaClipboardList />
-                <span>Travellers</span>
-                <DropdownIcon open={isTravellersDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isTravellersDropdown && (
-                <SubMenu>
-                  <SubLink to="/GRNGeneration">
-                    <span>GRN Generation</span>
-                  </SubLink>
-                  <SubLink to="/TravellersIntentReport">
-                    <span>Travellers Intent Report</span>
-                  </SubLink>
-                  <SubLink to="/TravellersINGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-
-              {/* Inventory Management */}
-              <DropdownButton
-                onClick={toggleInventory}
-                active={isInventoryActive}
-              >
-                <FaClipboardList />
-                <span>Inventory Management</span>
-                <DropdownIcon open={isInventoryDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isInventoryDropdown && (
-                <SubMenu>
-                  <SubLink to="/ItemManagement">
-                    <span>Item Management</span>
-                  </SubLink>
-                  <SubLink to="/VendorManagement">
-                    <span>Vendor Management</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
+            <TravellersDropdown
+              links={[
+                { to: "/GRNGeneration", label: "GRN Generation" },
+                {
+                  to: "/TravellersIntentApproval",
+                  label: "Travellers Intent Approval",
+                },
+                { to: "/TravellersINGRNReport", label: "GRN Report" },
+              ]}
+            />
+            <InventoryDropdown />
           </>
         );
 
       case "Accounts":
         return (
-          <>
-            <SidebarItem>
-              {/* Travellers */}
-              <DropdownButton
-                onClick={toggleTravellers}
-                active={isTravellersActive}
-              >
-                <FaClipboardList />
-                <span>GRN Report</span>
-                <DropdownIcon open={isTravellersDropdown}>
-                  <FaCaretDown />
-                </DropdownIcon>
-              </DropdownButton>
-              {isTravellersDropdown && (
-                <SubMenu>
-                  <SubLink to="/TravellersINGRNReport">
-                    <span>GRN Report</span>
-                  </SubLink>
-                </SubMenu>
-              )}
-            </SidebarItem>
-          </>
+          <SidebarItem>
+            <DropdownButton
+              onClick={() => setIsTravellersOpen((v) => !v)}
+              active={isTravellersActive}
+            >
+              <FaClipboardList />
+              <span style={{ flex: 1 }}>GRN Report</span>
+              <DropdownIcon open={isTravellersOpen}>
+                <FaCaretDown />
+              </DropdownIcon>
+            </DropdownButton>
+            {isTravellersOpen && (
+              <SubMenu>
+                <SubLink to="/TravellersINGRNReport">GRN Report</SubLink>
+              </SubMenu>
+            )}
+          </SidebarItem>
         );
 
       case "Employee":
-        return (
-          <>
-            {/* Travellers Intent (Employee only) */}
-            <SidebarItem>
-              <SidebarNavLink to="/TravellersIntent">
-                <FaClipboardList />
-                Travellers Intent
-              </SidebarNavLink>
-            </SidebarItem>
-          </>
-        );
-
       default:
-        // Default case - show Employee menu
         return (
-          <>
-            <SidebarItem>
-              <SidebarNavLink to="/TravellersIntent">
-                <FaClipboardList />
-                Travellers Intent
-              </SidebarNavLink>
-            </SidebarItem>
-          </>
+          <SidebarItem>
+            <SidebarNavLink to="/TravellersIntent">
+              <FaClipboardList />
+              Travellers Intent
+            </SidebarNavLink>
+          </SidebarItem>
         );
     }
   };
 
   return (
-    <SidebarContainer>
-      <Logo>
-        <h1>TMC Stock</h1>
-      </Logo>
-      <SidebarMenu>{renderMenuItems()}</SidebarMenu>
-    </SidebarContainer>
+    <>
+      {/* ── Mobile hamburger toggle ─────────────────────────────────────── */}
+      <MobileMenuToggle
+        onClick={() => setMobileOpen((v) => !v)}
+        aria-label={mobileOpen ? "Close menu" : "Open menu"}
+      >
+        {mobileOpen ? <FaTimes /> : <FaBars />}
+      </MobileMenuToggle>
+
+      {/* ── Backdrop (mobile only) ──────────────────────────────────────── */}
+      <SidebarOverlay
+        open={mobileOpen}
+        onClick={() => setMobileOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* ── Sidebar panel ──────────────────────────────────────────────── */}
+      <SidebarContainer open={mobileOpen} aria-label="Navigation">
+        <Logo>
+          <h1>TMC Stock</h1>
+        </Logo>
+        <SidebarMenu>{renderMenu()}</SidebarMenu>
+      </SidebarContainer>
+
+      {/* ── Main content area (shifts right on desktop) ─────────────────── */}
+      {children && <MainContent>{children}</MainContent>}
+    </>
   );
 };
 

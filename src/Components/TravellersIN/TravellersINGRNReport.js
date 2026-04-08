@@ -601,6 +601,7 @@ const PaymentModal = ({
               >
                 <option value="">Select Payment Method</option>
                 <option value="Cash">Cash</option>
+                <option value="NEFT">NEFT</option>
                 <option value="UPI">UPI</option>
                 <option value="Cheque">Cheque</option>
                 <option value="Bank Transfer">Bank Transfer</option>
@@ -608,7 +609,7 @@ const PaymentModal = ({
             </PaymentInputWrapper>
 
             {/* Extra detail field only for non-Cash methods */}
-            {["UPI", "Cheque", "Bank Transfer"].includes(
+            {["NEFT", "UPI", "Cheque", "Bank Transfer"].includes(
               paymentDetails.payment_method,
             ) && (
               <PaymentInputWrapper>
@@ -883,7 +884,7 @@ const GRNReport = () => {
     if (!paymentDetails.payment_date)
       return toast.error("Please select a payment date");
     if (
-      ["UPI", "Cheque", "Bank Transfer"].includes(
+      ["NEFT", "UPI", "Cheque", "Bank Transfer"].includes(
         paymentDetails.payment_method,
       ) &&
       !paymentDetails.payment_details

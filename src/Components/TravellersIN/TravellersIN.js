@@ -620,6 +620,7 @@ const TravellersIN = () => {
   const [roundSign, setRoundSign] = useState("+");
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddVendorModal, setShowAddVendorModal] = useState(false);
+  const [roundRaw, setRoundRaw] = useState("");
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -691,6 +692,12 @@ const TravellersIN = () => {
         dueDate: record.due_date || "",
         paymentMode: record.payment_mode || "CHEQUE",
       });
+
+      // ✅ Move here — safe because we're inside `if (record)`
+      const rawVal = Math.abs(parseFloat(record.round_amount || 0));
+      setRoundRaw(rawVal > 0 ? String(rawVal) : "");
+      setRoundSign(parseFloat(record.round_amount || 0) < 0 ? "-" : "+");
+
       const parsedItems = (() => {
         if (!record.items) return [];
         if (Array.isArray(record.items)) return record.items;
@@ -1120,6 +1127,7 @@ const TravellersIN = () => {
     setItems([]);
     setSummary(EMPTY_SUMMARY);
     setRoundSign("+");
+    setRoundRaw(""); // ← add this
     navigate("/TravellersIN", { replace: true, state: {} });
   };
 
@@ -1861,7 +1869,7 @@ const TravellersIN = () => {
                       onClick={() => {
                         const sign = roundSign === "+" ? "-" : "+";
                         setRoundSign(sign);
-                        const abs = Math.abs(summary.roundAmount || 0);
+                        const abs = parseFloat(roundRaw) || 0;
                         if (abs > 0)
                           setSummary((prev) => ({
                             ...prev,
@@ -1874,10 +1882,12 @@ const TravellersIN = () => {
                     <RoundInput
                       type="number"
                       step="0.01"
-                      value={Math.abs(summary.roundAmount || 0) || ""}
+                      value={roundRaw}
                       placeholder="0.00"
                       onChange={(e) => {
-                        const v = parseFloat(e.target.value) || 0;
+                        const raw = e.target.value;
+                        setRoundRaw(raw); // keep the string as-is
+                        const v = parseFloat(raw) || 0;
                         setSummary((prev) => ({
                           ...prev,
                           roundAmount: roundSign === "+" ? v : -v,

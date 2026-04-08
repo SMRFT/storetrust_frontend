@@ -698,7 +698,9 @@ const TravellersIN = () => {
           return [];
         }
       })();
-      setItems(parsedItems);
+      setItems(
+        parsedItems.map((item, idx) => ({ ...item, _rowId: Date.now() + idx })),
+      );
       setSummary({
         nonTaxableAmount: parseFloat(record.non_taxable_amount || 0),
         taxableAmount: parseFloat(record.taxable_amount || 0),
@@ -772,7 +774,28 @@ const TravellersIN = () => {
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: value }));
+
+    if (name === "invoiceDate") {
+      // 1. Update the Invoice Date
+      const newInvoiceDate = value;
+
+      // 2. Calculate Due Date (Invoice Date + 45 Days)
+      let newDueDate = "";
+      if (newInvoiceDate) {
+        const dateObj = new Date(newInvoiceDate);
+        dateObj.setDate(dateObj.getDate() + 45);
+        newDueDate = dateObj.toISOString().split("T")[0];
+      }
+
+      setFormData((p) => ({
+        ...p,
+        invoiceDate: newInvoiceDate,
+        dueDate: newDueDate,
+      }));
+    } else {
+      // Standard change for other fields
+      setFormData((p) => ({ ...p, [name]: value }));
+    }
   };
 
   const handleSummaryChange = (e) => {
@@ -783,7 +806,7 @@ const TravellersIN = () => {
   // ── Modal ──────────────────────────────────────────────────────────────────
   const openModal = (item = null) => {
     if (item) {
-      setEditingItem(item.item_id);
+      setEditingItem(item._rowId); // ← use _rowId
       const matchedName =
         availableItems.find((i) => String(i.item_id) === String(item.item_id))
           ?.itemName || "";
@@ -944,19 +967,21 @@ const TravellersIN = () => {
     if (editingItem) {
       setItems((prev) =>
         prev.map((i) =>
-          i.item_id === editingItem
-            ? buildItem(modalForm, editingItem, i.hsn) // pass existing hsn
+          i._rowId === editingItem
+            ? { ...buildItem(modalForm, i.item_id, i.hsn), _rowId: i._rowId }
             : i,
         ),
       );
     } else {
-      setItems((prev) => [...prev, buildItem(modalForm, null, null)]);
+      setItems((prev) => [
+        ...prev,
+        { ...buildItem(modalForm, null, null), _rowId: Date.now() },
+      ]);
     }
     closeModal();
   };
-
-  const handleDeleteItem = (item_id) =>
-    setItems((prev) => prev.filter((i) => i.item_id !== item_id));
+  const handleDeleteItem = (_rowId) =>
+    setItems((prev) => prev.filter((i) => i._rowId !== _rowId));
 
   // ── History ────────────────────────────────────────────────────────────────
   const handleShowHistory = async (item) => {
@@ -990,6 +1015,18 @@ const TravellersIN = () => {
   const handleSubmit = () => {
     if (!formData.invoiceNo?.trim()) {
       toast.error("Invoice Number is required");
+      return;
+    }
+    if (!formData.invoiceDate?.trim()) {
+      toast.error("Invoice Date is required");
+      return;
+    }
+    if (!formData.dueDate?.trim()) {
+      toast.error("Due Date is required");
+      return;
+    }
+    if (!formData.vendor_id?.trim()) {
+      toast.error("Vendor is required");
       return;
     }
     if (!formData.purchaseCategory) {
@@ -1192,7 +1229,7 @@ const TravellersIN = () => {
     </SumField>
   );
 
-  // ── Vendor Dropdown ────────────────────────────────────────────────────────
+  // ── Vendor Dropdown ──────────────────────────────────────────────────────
   const VendorDropdown = () => {
     const [search, setSearch] = useState(formData.vendor || "");
     const [open, setOpen] = useState(false);
@@ -1293,6 +1330,86 @@ const TravellersIN = () => {
     );
   };
 
+  // ── Item Dropdown ──────────────────────────────────────────────────────────
+  const ItemDropdown = () => {
+    const [search, setSearch] = useState(modalForm.name || "");
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+      setSearch(modalForm.name || "");
+    }, [modalForm.name]);
+
+    const filtered = availableItems
+      .filter((i) => String(i.hsn ?? "").trim())
+      .filter((i) => i.itemName.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => a.itemName.localeCompare(b.itemName));
+
+    useEffect(() => {
+      const handler = (e) => {
+        if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      };
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const select = (item) => {
+      setSearch(item.itemName);
+      setOpen(false);
+      setModalForm((prev) => ({
+        ...prev,
+        name: item.itemName,
+        hsn: item.hsn || "",
+      }));
+    };
+
+    return (
+      <AutoWrap ref={ref}>
+        <div style={{ position: "relative" }}>
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setOpen(true);
+              if (!e.target.value) {
+                setModalForm((prev) => ({ ...prev, name: "", hsn: "" }));
+              }
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder={loadingItems ? "Loading…" : "Search item"}
+            style={{ paddingRight: 28, fontSize: "0.82rem" }}
+          />
+          <FaChevronDown
+            style={{
+              position: "absolute",
+              right: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: colors.textMuted,
+              fontSize: 11,
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+        {open && filtered.length > 0 && (
+          <DropList>
+            {filtered.map((i) => (
+              <DropItem key={i.item_id} onMouseDown={() => select(i)}>
+                {i.itemName}
+              </DropItem>
+            ))}
+          </DropList>
+        )}
+        {open && search && filtered.length === 0 && (
+          <DropList>
+            <DropItem style={{ color: colors.textMuted, cursor: "default" }}>
+              No items found
+            </DropItem>
+          </DropList>
+        )}
+      </AutoWrap>
+    );
+  };
   // ─────────────────────────────────────────────────────────────────────────────
   // JSX
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1555,7 +1672,7 @@ const TravellersIN = () => {
           {/* ── Card 2: Items ── */}
           <Card>
             <CardHeader>
-              <span>💊 Items</span>
+              <span>Items</span>
               <Button
                 onClick={() => openModal()}
                 style={{ padding: "5px 12px", fontSize: "0.78rem" }}
@@ -1604,7 +1721,7 @@ const TravellersIN = () => {
                       </tr>
                     ) : (
                       items.map((it, idx) => (
-                        <tr key={it.item_id ?? idx}>
+                        <tr key={it._rowId ?? idx}>
                           <td>{idx + 1}</td>
                           {/* Name resolved from availableItems */}
                           <td style={{ fontWeight: 600, minWidth: 120 }}>
@@ -1647,7 +1764,7 @@ const TravellersIN = () => {
                             </ActionBtn>
                             <ActionBtn
                               className="del"
-                              onClick={() => handleDeleteItem(it.item_id)}
+                              onClick={() => handleDeleteItem(it._rowId)}
                             >
                               <FaTrash />
                             </ActionBtn>
@@ -1846,6 +1963,7 @@ const TravellersIN = () => {
             <ModalScroll>
               <SectionDivider>Item Details</SectionDivider>
               <GridRow cols="repeat(5, 1fr)">
+                {/* Replace the existing InputWrapper + Select for item name with this */}
                 <InputWrapper style={{ gridColumn: "span 2" }}>
                   <Lbl
                     style={{
@@ -1872,21 +1990,7 @@ const TravellersIN = () => {
                       +
                     </button>
                   </Lbl>
-                  <Select
-                    name="name"
-                    value={modalForm.name}
-                    onChange={handleModalChange}
-                    style={{ fontSize: "0.82rem" }}
-                  >
-                    <option value="">Select item</option>
-                    {availableItems
-                      .filter((i) => String(i.hsn ?? "").trim())
-                      .map((i) => (
-                        <option key={i.itemName} value={i.itemName}>
-                          {i.itemName}
-                        </option>
-                      ))}
-                  </Select>
+                  <ItemDropdown />
                 </InputWrapper>
 
                 <InputWrapper>

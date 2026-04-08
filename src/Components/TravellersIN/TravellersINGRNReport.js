@@ -846,6 +846,7 @@ const GRNReport = () => {
   const handleOpenPaymentModal = (record) => {
     setPaymentDetails({
       grn_number: record.grn_number,
+      grn_id: record.grn_id,
       amount_paid: "",
       payment_method: "",
       payment_details: "",
@@ -908,7 +909,7 @@ const GRNReport = () => {
       };
 
       const response = await apiRequest(
-        `${StoreTrustbaseurl}travellers-in/update-payment-status/?grn_number=${encodeURIComponent(paymentDetails.grn_number)}`,
+        `${StoreTrustbaseurl}travellers-in/update-payment-status/?grn_number=${encodeURIComponent(paymentDetails.grn_number)}&grn_id=${paymentDetails.grn_id}`,
         "PATCH",
         payload,
       );

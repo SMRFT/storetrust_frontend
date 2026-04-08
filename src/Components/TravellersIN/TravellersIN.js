@@ -541,6 +541,7 @@ const TravellersIN = () => {
     purchaseCategory: "",
     vendor: "",
     vendor_id: "",
+    grn_id: "",
     date: new Date().toISOString().split("T")[0],
     supplierAddress: "",
     contactPerson: "",
@@ -679,6 +680,7 @@ const TravellersIN = () => {
         purchaseCategory: record.purchase_category || "",
         vendor: record.vendor || "",
         vendor_id: record.vendor_id || "",
+        grn_id: record.grn_id || "",
         date: record.date || new Date().toISOString().split("T")[0],
         supplierAddress: record.address || "",
         contactPerson: record.contact_person || "",
@@ -1076,9 +1078,9 @@ const TravellersIN = () => {
     setLoading(true);
     try {
       let result;
-      if (grn_number) {
+      if (grn_number && formData.grn_id) {
         result = await apiRequest(
-          `${StoreTrustbaseurl}travellers-in/update/${encodeURIComponent(grn_number)}/`,
+          `${StoreTrustbaseurl}travellers-in/update/${encodeURIComponent(grn_number)}/${formData.grn_id}/`,
           "PATCH",
           payload,
         );

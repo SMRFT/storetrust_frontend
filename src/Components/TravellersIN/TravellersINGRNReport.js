@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import ReactDOM from "react-dom";
 import {
   Calendar,
@@ -664,7 +664,6 @@ const PaymentModal = ({
 // ─────────────────────────────────────────────
 const GRNReport = () => {
   const [allData, setAllData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
     from_date: new Date().toISOString().split("T")[0],
@@ -736,13 +735,18 @@ const GRNReport = () => {
 
         // ✅ Removed is_active filter — field no longer exists on model
         const records = response.data.data;
+        const seen = new Set();
+        const uniqueRecords = records.filter((r) => {
+          if (seen.has(r.grn_id)) return false;
+          seen.add(r.grn_id);
+          return true;
+        });
+        setAllData(uniqueRecords);
         setAllData(records);
-        setFilteredData(records);
         if (records.length === 0) toast.info("No records found");
       } catch (error) {
         toast.error(error.message || "Failed to fetch GRN records");
         setAllData([]);
-        setFilteredData([]);
       } finally {
         setLoading(false);
       }
@@ -782,16 +786,16 @@ const GRNReport = () => {
   };
 
   // ── filters ───────────────────────────────────
-  const applyFilters = useCallback(() => {
+  const filteredData = useMemo(() => {
     let filtered = [...allData];
 
-    if (filters.category && filters.category !== "ALL")
+    if (filters.category && filters.category !== "ALL") {
       filtered = filtered.filter(
-        (item) => item.purchase_category?.toUpperCase() === filters.category,
+        (item) =>
+          item.purchase_category?.trim().toUpperCase() ===
+          filters.category.trim().toUpperCase(),
       );
-
-    // ✅ Removed from_date / to_date filtering here — backend already filters by date
-    // Only search filter remains for client-side filtering
+    }
 
     if (filters.search.trim()) {
       const term = filters.search.toLowerCase().trim();
@@ -805,15 +809,18 @@ const GRNReport = () => {
       );
     }
 
-    setFilteredData(filtered);
-    setCurrentPage(1);
-  }, [allData, filters]);
+    return filtered;
+  }, [allData, filters.category, filters.search]);
 
   const handleFilterChange = (key, value) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
   const clearFilters = () => {
-    setFilters({ from_date: "", to_date: "", search: "", category: "ALL" });
-    setFilteredData(allData);
+    setFilters({
+      from_date: new Date().toISOString().split("T")[0],
+      to_date: new Date().toISOString().split("T")[0],
+      search: "",
+      category: "ALL",
+    });
     setCurrentPage(1);
   };
 
@@ -1263,9 +1270,11 @@ const GRNReport = () => {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // Add this effect
   useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
+    setCurrentPage(1);
+  }, [filters.category, filters.search]);
 
   // ── pagination ────────────────────────────────
   const totalPages = Math.ceil(filteredData.length / pageSize);
@@ -1413,7 +1422,7 @@ const GRNReport = () => {
                   currentData.map((row, index) => {
                     const [payment1] = formatPaymentHistory(row.payment_status);
                     return (
-                      <TableRow key={row.grn_number || index}>
+                      <TableRow key={row.grn_id || index}>
                         <Td style={{ whiteSpace: "nowrap" }}>
                           {formatDate(row.date)}
                         </Td>

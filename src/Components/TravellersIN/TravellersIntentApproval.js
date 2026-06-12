@@ -41,6 +41,26 @@ import {
 } from "../StyledComponents";
 
 // ---------- Helper Functions ----------
+
+// Map stored full-form status → dropdown option values (short-form)
+const STATUS_REVERSE = {
+  Approved: "Approve",
+  Rejected: "Reject",
+  "Partially Approved": "Partially Approve",
+};
+
+// Map short-form dropdown values → display labels
+const STATUS_DISPLAY = {
+  Approve: "Approved",
+  Reject: "Rejected",
+  "Partially Approve": "Partially Approved",
+  Pending: "Pending",
+  // Also handle if full-form arrives directly
+  Approved: "Approved",
+  Rejected: "Rejected",
+  "Partially Approved": "Partially Approved",
+};
+
 const getIntentStatus = (items) => {
   if (!items || items.length === 0) return "Pending";
 
@@ -57,23 +77,14 @@ const getIntentStatus = (items) => {
     }
   });
 
-  // If any item is still Pending → whole intent is Pending
   if (statuses.includes("Pending")) return "Pending";
-
-  // All items same status
   if (statuses.every((s) => s === "Approved")) return "Approved";
   if (statuses.every((s) => s === "Rejected")) return "Rejected";
   if (statuses.every((s) => s === "Partially Approved"))
     return "Partially Approved";
-
-  // Mixed statuses (no Pending) — any partial approval or mix = Partially Approved
   if (statuses.includes("Partially Approved")) return "Partially Approved";
-
-  // Mix of Approved + Rejected only = Partially Approved
   if (statuses.includes("Approved") && statuses.includes("Rejected"))
     return "Partially Approved";
-
-  // Fallback
   if (statuses.includes("Approved")) return "Approved";
   if (statuses.includes("Rejected")) return "Rejected";
 
@@ -106,6 +117,16 @@ const toRoman = (num) => {
   return result;
 };
 
+// Helper: normalize any status to its full-form string for logic checks
+const normalizeStatus = (status) => {
+  const map = {
+    Approve: "Approved",
+    Reject: "Rejected",
+    "Partially Approve": "Partially Approved",
+  };
+  return map[status] || status || "Pending";
+};
+
 const getTotalStock = async (item_id, hsn) => {
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
   const url = `${StoreTrustbaseurl}travellers-stock/?item_id=${encodeURIComponent(item_id)}&hsn=${encodeURIComponent(hsn || "")}`;
@@ -119,7 +140,6 @@ const getTotalStock = async (item_id, hsn) => {
   }
 };
 
-// New function to restore stock when rejecting approved items
 const restoreStockInDB = async (item_id, hsn, quantity, employeeId) => {
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
   try {
@@ -235,7 +255,6 @@ function TravellersIntentApproval() {
   const [editValues, setEditValues] = useState({ approved: "", status: "" });
   const [modalVisible, setModalVisible] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const fetchedRef = useRef(false);
   const [modalData, setModalData] = useState({
     intentId: null,
     itemIndex: null,
@@ -244,19 +263,28 @@ function TravellersIntentApproval() {
     availableStock: 0,
   });
 
+  // Re-fetch whenever date filters change
+  useEffect(() => {
+    fetchData();
+  }, [fromDate, toDate]);
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
       const StoreTrustbaseurl =
         process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
-      const url = `${StoreTrustbaseurl}travellers-intent/`;
+
+      const params = new URLSearchParams();
+      if (fromDate) params.append("from_date", fromDate);
+      if (toDate) params.append("to_date", toDate);
+
+      const url = `${StoreTrustbaseurl}travellers-intent/?${params.toString()}`;
       const response = await apiRequest(url, "GET");
       if (!response.success)
         throw new Error(response.error || "Failed to fetch data");
       const result = response.data;
 
-      // Filter active intents
       const activeIntents = Array.isArray(result)
         ? result.filter(
             (intent) =>
@@ -266,26 +294,19 @@ function TravellersIntentApproval() {
 
       const intentsWithDetails = activeIntents.map((intent) => {
         let raw = intent.items;
-        // Handle double-stringified JSON ("\"[{...}]\"")
-        if (typeof raw === "string") {
+        // Unwrap however many layers of stringification exist
+        while (typeof raw === "string") {
           try {
             raw = JSON.parse(raw);
-          } catch {}
-        }
-        if (typeof raw === "string") {
-          try {
-            raw = JSON.parse(raw);
-          } catch {}
+          } catch {
+            break;
+          }
         }
         const items = Array.isArray(raw) ? raw : [];
-
-        // Filter out inactive items
         const activeItems = items.filter((item) => item.is_active !== false);
-
         return { ...intent, items: activeItems };
       });
 
-      // Update state with intents only (no stock data initially)
       setIntents(intentsWithDetails);
     } catch (err) {
       setError(err.message || "Failed to fetch data");
@@ -293,13 +314,6 @@ function TravellersIntentApproval() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!fetchedRef.current) {
-      fetchData();
-      fetchedRef.current = true;
-    }
-  }, []);
 
   const handleClearFilters = () => {
     setFromDate(today);
@@ -312,16 +326,13 @@ function TravellersIntentApproval() {
       return;
     }
 
-    // Find the intent being expanded
     const intent = intents.find((i) => i.intent_number === intentNumber);
     if (!intent) return;
 
-    // Show loading state
     setExpandedIntent(intentNumber);
     setLoading(true);
 
     try {
-      // Fetch fresh stock for all items in this intent
       const items = Array.isArray(intent.items) ? intent.items : [];
       const updatedItems = await Promise.all(
         items.map(async (item) => {
@@ -336,12 +347,10 @@ function TravellersIntentApproval() {
         }),
       );
 
-      // Update the intent with fresh stock data
       const updatedIntents = intents.map((i) =>
         i.intent_number === intentNumber ? { ...i, items: updatedItems } : i,
       );
 
-      // Recalculate dynamic stock considering all intents
       const recalculatedIntents = updateDynamicStock(updatedIntents);
       setIntents(recalculatedIntents);
     } catch (error) {
@@ -364,11 +373,9 @@ function TravellersIntentApproval() {
     const items = Array.isArray(intent.items) ? [...intent.items] : [];
     const item = items[itemIndex];
 
-    // Store previous approved quantity and status
     const prevApprovedQty = Number(item.approved || 0);
-    const prevStatus = item.status;
+    const prevStatusNorm = normalizeStatus(item.status);
 
-    // Use provided updatedItem or create new one
     const finalUpdatedItem = updatedItem || {
       ...item,
       status: newStatus,
@@ -377,53 +384,17 @@ function TravellersIntentApproval() {
 
     items[itemIndex] = finalUpdatedItem;
 
-    // Update intents immediately
     let updatedIntents = intents.map((i) =>
       i.intent_number === intentId ? { ...i, items } : i,
     );
 
-    // Handle stock restoration when rejecting previously approved items
-    if (
-      newStatus === "Rejected" &&
-      prevApprovedQty > 0 &&
-      (prevStatus === "Approved" ||
-        prevStatus === "Approve" ||
-        prevStatus === "Partially Approved" ||
-        prevStatus === "Partially Approve")
-    ) {
-      console.log(
-        `Rejecting item: ${item.itemName}, restoring ${prevApprovedQty} stock`,
-      );
+    // ── REMOVED: restoreStockInDB call and restoreStockOnRejection ──
+    // Backend update_intent_item already handles stock restoration on Reject.
+    // Calling add_back_traveller_stock/ here was causing double-restoration.
 
-      // Restore stock in database
-      const employeeId = localStorage.getItem("username") || "Unknown User";
-      const restoreSuccess = await restoreStockInDB(
-        item.item_id,
-        item.hsn || "",
-        prevApprovedQty,
-        employeeId,
-      );
-
-      if (!restoreSuccess) {
-        alert(
-          `Warning: Failed to restore stock for item_id=${item.item_id}. Please check manually.`,
-        );
-      }
-
-      updatedIntents = restoreStockOnRejection(
-        updatedIntents,
-        intentId,
-        item.item_id,
-        prevApprovedQty,
-      );
-    }
-
-    // Recalculate sequential stock for all intents
     updateDynamicStock(updatedIntents);
-
     setIntents(updatedIntents);
 
-    // Call backend to update intent status
     await updateIntentItemsInDB(intentId, items, finalUpdatedItem, intent.date);
   };
 
@@ -438,23 +409,18 @@ function TravellersIntentApproval() {
         const key = `${item.item_id}-${item.hsn || ""}`;
 
         if (!(key in stockMap)) {
-          stockMap[key] = Number(item.totalStock || 0); // initial stock from backend
+          stockMap[key] = Number(item.totalStock || 0);
         }
 
-        // Stock available before deduction
         item.dynamicTotalStock = stockMap[key];
 
-        // Deduct based on current status only
+        // Normalize status for deduction logic
+        const normStatus = normalizeStatus(item.status);
         let deduction = 0;
-        if (item.status === "Approved" || item.status === "Approve") {
+        if (normStatus === "Approved") {
           deduction = Number(item.quantity || 0);
-        } else if (
-          item.status === "Partially Approved" ||
-          item.status === "Partially Approve"
-        ) {
+        } else if (normStatus === "Partially Approved") {
           deduction = Number(item.approved || 0);
-        } else {
-          deduction = 0; // Pending or Rejected → no deduction
         }
 
         stockMap[key] = Math.max(0, stockMap[key] - deduction);
@@ -467,10 +433,9 @@ function TravellersIntentApproval() {
   const restoreStockOnRejection = (
     intentsList,
     intentId,
-    itemName,
+    itemId,
     restoredQty,
   ) => {
-    // Sort intents by date
     const sortedIntents = [...intentsList].sort(
       (a, b) => new Date(a.date) - new Date(b.date),
     );
@@ -485,26 +450,21 @@ function TravellersIntentApproval() {
           stockMap[key] = Number(item.totalStock || 0);
         }
 
-        // Restore stock **before deduction** for the rejected item
+        const normStatus = normalizeStatus(item.status);
         if (
           intent.intent_number === intentId &&
-          item.item_id === itemName && // itemName param now holds item_id value
-          item.status === "Rejected"
+          item.item_id === itemId &&
+          normStatus === "Rejected"
         ) {
           stockMap[key] += restoredQty;
         }
 
-        // Stock before deduction
         item.dynamicTotalStock = stockMap[key];
 
-        // Deduct based on approved or partially approved
         let deduction = 0;
-        if (item.status === "Approved" || item.status === "Approve") {
+        if (normStatus === "Approved") {
           deduction = Number(item.quantity || 0);
-        } else if (
-          item.status === "Partially Approved" ||
-          item.status === "Partially Approve"
-        ) {
+        } else if (normStatus === "Partially Approved") {
           deduction = Number(item.approved || 0);
         }
         stockMap[key] = Math.max(0, stockMap[key] - deduction);
@@ -520,11 +480,11 @@ function TravellersIntentApproval() {
     const items = Array.isArray(intent.items) ? [...intent.items] : [];
     const item = items[itemIndex];
 
-    if (item.status === newStatus) return;
+    // Normalize both for comparison so "Approved" and "Approve" are treated the same
+    if (normalizeStatus(item.status) === normalizeStatus(newStatus)) return;
 
     const requestedQuantity = Number(item.quantity || 0);
 
-    // Always fetch live stock from backend
     const hsn = item.hsn || "";
     const freshStock = await getTotalStock(item.item_id, hsn);
 
@@ -542,17 +502,18 @@ function TravellersIntentApproval() {
     }
 
     let approvedQuantity = 0;
-    if (newStatus === "Approved" || newStatus === "Approve") {
+    const newStatusNorm = normalizeStatus(newStatus);
+
+    if (newStatusNorm === "Approved") {
       if (freshStock < requestedQuantity) {
         alert(`Cannot approve. Available stock: ${freshStock}`);
         return;
       }
       approvedQuantity = requestedQuantity;
-    } else if (newStatus === "Rejected" || newStatus === "Pending") {
+    } else if (newStatusNorm === "Rejected" || newStatusNorm === "Pending") {
       approvedQuantity = 0;
     }
 
-    // FIXED: Update the item's approved field before calling updateStatusAndStock
     const updatedItem = {
       ...item,
       status: newStatus,
@@ -577,19 +538,12 @@ function TravellersIntentApproval() {
       const StoreTrustbaseurl =
         process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
+      const normStatus = normalizeStatus(updatedItem.status);
       let approvedQty = 0;
-      if (
-        updatedItem.status === "Approve" ||
-        updatedItem.status === "Approved"
-      ) {
+      if (normStatus === "Approved") {
         approvedQty = Number(updatedItem.quantity || 0);
-      } else if (
-        updatedItem.status === "Partially Approve" ||
-        updatedItem.status === "Partially Approved"
-      ) {
+      } else if (normStatus === "Partially Approved") {
         approvedQty = Number(updatedItem.approved || 0);
-      } else {
-        approvedQty = 0;
       }
 
       const data = {
@@ -615,16 +569,12 @@ function TravellersIntentApproval() {
 
       console.log(`Successfully updated intent ${intentId} in DB`);
 
-      // ── Fetch fresh data then re-hydrate stock for the open popup ────────
       await fetchData();
 
-      // Re-fetch stock for all items in the still-expanded intent
-      // so the popup shows correct stock after the update
       setIntents((prev) => {
         const intent = prev.find((i) => i.intent_number === intentId);
         if (!intent) return prev;
 
-        // Async re-hydrate stock in background
         (async () => {
           const updatedItems = await Promise.all(
             (Array.isArray(intent.items) ? intent.items : []).map(
@@ -649,7 +599,7 @@ function TravellersIntentApproval() {
           });
         })();
 
-        return prev; // return unchanged synchronously, async update follows
+        return prev;
       });
     } catch (err) {
       console.error("Failed to update items in the database:", err);
@@ -674,10 +624,6 @@ function TravellersIntentApproval() {
       if (item) {
         const hsn = item.hsn || "";
         const freshStock = await getTotalStock(item.item_id, hsn);
-        console.log(
-          `[v0] Fresh stock fetched for ${item.itemName}: ${freshStock}`,
-        );
-
         setModalData((prev) => ({
           ...prev,
           availableStock: freshStock,
@@ -692,86 +638,103 @@ function TravellersIntentApproval() {
     setModalVisible(false);
   };
 
-  const handlePrintTable = () => {
+  const handlePrintTable = async () => {
+    const fromLabel = fromDate
+      ? new Date(fromDate).toLocaleDateString()
+      : "All";
+    const toLabel = toDate ? new Date(toDate).toLocaleDateString() : "All";
+
+    // ── Fetch stock for every item that hasn't been loaded yet ──
+    const intentsWithStock = await Promise.all(
+      filteredIntents.map(async (intent) => {
+        const items = Array.isArray(intent.items) ? intent.items : [];
+        const itemsWithStock = await Promise.all(
+          items.map(async (item) => {
+            // Use already-fetched value if available, otherwise call the API
+            if (
+              item.dynamicTotalStock !== undefined ||
+              item.totalStock !== undefined
+            ) {
+              return item;
+            }
+            const hsn = item.hsn || "";
+            const freshStock = await getTotalStock(item.item_id, hsn);
+            return {
+              ...item,
+              totalStock: freshStock,
+              dynamicTotalStock: freshStock,
+            };
+          }),
+        );
+        return { ...intent, items: itemsWithStock };
+      }),
+    );
+
     let printContent = `
-      <style>
-        body {
-          font-family: 'Segoe UI', sans-serif;
-          margin: 20px;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        th, td {
-          border: 1px solid black;
-          padding: 8px;
-        }
-        th {
-          color: black;
-          font-weight: bold;
-          font-size: 14px;
-          text-align: center;
-        }
-        td.num {
-          text-align: right;
-        }
-        td.text {
-          text-align: left;
-        }
-        td.center {
-          text-align: center;
-        }
-      </style>
-      <table>
-        <thead>
-          <tr>
-            <th>S.No</th>
-            <th>Item ID</th>
-            <th>Item Name</th>
-            <th>Quantity</th>
-            <th>Approved</th>
-            <th>Total Stock</th>
-            <th>Item Status</th>
-            <th>Raised By</th>
-            <th>Approved By / Rejected By</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; margin: 20px; }
+    h2 { text-align: center; margin-bottom: 4px; }
+    .date-range { text-align: center; font-size: 13px; color: #555; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+    th { color: black; font-weight: bold; font-size: 14px; text-align: center; }
+    td.num { text-align: right; }
+    td.text { text-align: left; }
+    td.center { text-align: center; }
+  </style>
+  <h2>Traveller Intent Report</h2>
+  <div class="date-range">Date Range: ${fromLabel} &mdash; ${toLabel}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>S.No</th>
+        <th>Date</th>
+        <th>Intent Number</th>
+        <th>Item Name</th>
+        <th>Quantity</th>
+        <th>Approved</th>
+        <th>Total Stock</th>
+        <th>Item Status</th>
+        <th>Raised By</th>
+        <th>Approved By / Rejected By</th>
+      </tr>
+    </thead>
+    <tbody>
+  `;
 
     let serial = 1;
-    filteredIntents.forEach((intent) => {
+    intentsWithStock.forEach((intent) => {
       const items = Array.isArray(intent.items) ? intent.items : [];
       if (items.length > 0) {
-        items.forEach((item, idx) => {
+        items.forEach((item) => {
           const totalStockDisplay =
             item.dynamicTotalStock !== undefined
               ? item.dynamicTotalStock
               : (item.totalStock ?? 0);
 
           printContent += `
-            <tr>
-              <td class="num">${serial}</td>
-              <td class="center">${toRoman(item.item_id || idx + 1)}</td>
-              <td class="text">${item.itemName}</td>
-              <td class="num">${item.quantity}</td>
-              <td class="num">${item.approved || 0}</td>
-              <td class="num">${totalStockDisplay}</td>
-              <td class="text">${item.status || "Pending"}</td>
-              <td class="text">${intent.created_by || "Unknown"}</td>
-              <td class="text">${item.approved_by || "Pending"}</td>
-            </tr>
-          `;
+          <tr>
+            <td class="num">${serial}</td>
+            <td class="center">${new Date(intent.date).toLocaleDateString()}</td>
+            <td class="center">${intent.intent_number}</td>
+            <td class="text">${item.itemName}</td>
+            <td class="num">${item.quantity}</td>
+            <td class="num">${item.approved || 0}</td>
+            <td class="num">${totalStockDisplay}</td>
+            <td class="text">${normalizeStatus(item.status)}</td>
+            <td class="text">${intent.created_by || "Unknown"}</td>
+            <td class="text">${item.approved_by || "Pending"}</td>
+          </tr>
+        `;
           serial++;
         });
       } else {
         printContent += `
-          <tr>
-            <td class="num">${serial}</td>
-            <td colspan="8" style="text-align:center; font-style:italic;">No items</td>
-          </tr>
-        `;
+        <tr>
+          <td class="num">${serial}</td>
+          <td colspan="8" style="text-align:center; font-style:italic;">No items</td>
+        </tr>
+      `;
         serial++;
       }
     });
@@ -780,11 +743,11 @@ function TravellersIntentApproval() {
 
     const win = window.open("", "_blank");
     win.document.write(`
-      <html>
-        <head><title>Traveller Intent Report</title></head>
-        <body>${printContent}</body>
-      </html>
-    `);
+    <html>
+      <head><title>Traveller Intent Report (${fromLabel} to ${toLabel})</title></head>
+      <body>${printContent}</body>
+    </html>
+  `);
     win.document.close();
     win.print();
   };
@@ -800,9 +763,8 @@ function TravellersIntentApproval() {
       const items = Array.isArray(intent.items) ? intent.items : [];
       if (items.length > 0) {
         items.forEach((item, iidx) => {
-          if (item.is_active === false) return; // Skip inactive items
+          if (item.is_active === false) return;
           exportData.push({
-            "Item ID": toRoman(item.item_id || iidx + 1),
             "Item Name": item.itemName,
             Quantity: item.quantity,
             Approved: item.approved || 0,
@@ -810,7 +772,7 @@ function TravellersIntentApproval() {
               item.dynamicTotalStock !== undefined
                 ? item.dynamicTotalStock
                 : (item.totalStock ?? 0),
-            "Item Status": item.status || "Pending",
+            "Item Status": normalizeStatus(item.status),
             "Raised By ": `${intent.created_by || "N/A"} `,
             "Approved By / Rejected By": ` ${item.approved_by || "Pending"}`,
           });
@@ -818,25 +780,21 @@ function TravellersIntentApproval() {
       } else {
         exportData.push({ "Item Name": "No items" });
       }
-      exportData.push({}); // blank row between intents
+      exportData.push({});
     });
 
     const ws = XLSX.utils.json_to_sheet(exportData, { skipHeader: false });
     const range = XLSX.utils.decode_range(ws["!ref"]);
 
-    // Apply alignment to specific columns
     for (let R = range.s.r; R <= range.e.r; ++R) {
       for (let C = range.s.c; C <= range.e.c; ++C) {
         const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
         const cell = ws[cellAddress];
         if (cell) {
-          // Define column indices (0-based: S.No=0, Quantity=2, Approved=3, Total Stock=4)
-          const columnIndices = [0, 2, 3, 4]; // S.No, Quantity, Approved, Total Stock
+          const columnIndices = [0, 2, 3, 4];
           const isNumericColumn = columnIndices.includes(C);
-
           cell.s = {
             alignment: {
-              // Center header row
               horizontal:
                 R === 0 ? "center" : isNumericColumn ? "center" : "left",
               vertical: "center",
@@ -846,7 +804,6 @@ function TravellersIntentApproval() {
       }
     }
 
-    // Auto column widths
     const colWidths = exportData.reduce((widths, row) => {
       Object.keys(row).forEach((key, i) => {
         const val = row[key] ? row[key].toString() : "";
@@ -906,6 +863,7 @@ function TravellersIntentApproval() {
           <Button onClick={handleClearFilters}>Clear</Button>
         </ButtonGroup>
       </FilterContainer>
+
       <div id="printable-table">
         <Table>
           <thead>
@@ -924,15 +882,12 @@ function TravellersIntentApproval() {
                 const status = getIntentStatus(
                   (() => {
                     let r = intent.items;
-                    if (typeof r === "string") {
+                    while (typeof r === "string") {
                       try {
                         r = JSON.parse(r);
-                      } catch {}
-                    }
-                    if (typeof r === "string") {
-                      try {
-                        r = JSON.parse(r);
-                      } catch {}
+                      } catch {
+                        break;
+                      }
                     }
                     return Array.isArray(r) ? r : [];
                   })(),
@@ -994,12 +949,9 @@ function TravellersIntentApproval() {
                 marginBottom: "12px",
               }}
             >
-              {/* Title */}
               <h3 style={{ margin: 0, color: "#662549" }}>
                 Items for {expandedIntent}
               </h3>
-
-              {/* Right Cancel Button */}
               <CloseButton
                 onClick={() => setExpandedIntent(null)}
                 title="Close"
@@ -1007,6 +959,7 @@ function TravellersIntentApproval() {
                 <FaTimes />
               </CloseButton>
             </div>
+
             <SubTable>
               <thead>
                 <tr>
@@ -1028,17 +981,33 @@ function TravellersIntentApproval() {
                   );
                   if (!intent) return null;
                   const items = Array.isArray(intent.items) ? intent.items : [];
+
                   return items.length > 0 ? (
                     items.map((item, itemIndex) => {
                       const isEditing =
                         editingRow?.intentId === expandedIntent &&
                         editingRow?.itemIndex === itemIndex;
+
                       const currentStock =
-                        item.totalstock !== undefined
+                        item.totalstock !== undefined // lowercase 's' — this was intentional as a falsy check
                           ? item.dynamicTotalStock
                           : item.totalStock || 0;
+
                       const requestedQty = Number(item.quantity || 0);
-                      const isApprovedDisabled = requestedQty > currentStock;
+                      const normStatus = normalizeStatus(item.status);
+
+                      // Value shown in dropdown must match one of the <option value="...">
+                      // DB now stores full-form ("Approved") → map back to short-form option value
+                      const dropdownValue =
+                        STATUS_REVERSE[item.status] || item.status || "Pending";
+
+                      // Approved quantity display
+                      const approvedDisplay =
+                        normStatus === "Partially Approved"
+                          ? item.approved
+                          : normStatus === "Approved"
+                            ? item.quantity
+                            : 0;
 
                       return (
                         <tr key={item.item_id || itemIndex}>
@@ -1048,10 +1017,15 @@ function TravellersIntentApproval() {
                           </SubTd>
                           <SubTd>{item.itemName}</SubTd>
                           <SubTd>{item.quantity}</SubTd>
+
+                          {/* ── Status Dropdown ── */}
                           <SubTd>
                             {isEditing ? (
                               <select
-                                value={editValues.status}
+                                value={
+                                  STATUS_REVERSE[editValues.status] ||
+                                  editValues.status
+                                }
                                 onChange={(e) => {
                                   const newStatus = e.target.value;
                                   let newApproved = editValues.approved;
@@ -1074,7 +1048,7 @@ function TravellersIntentApproval() {
                                 </option>
                                 <option
                                   value="Approve"
-                                  disabled={isApprovedDisabled}
+                                  disabled={requestedQty > currentStock}
                                 >
                                   Approve
                                 </option>
@@ -1082,7 +1056,7 @@ function TravellersIntentApproval() {
                               </select>
                             ) : (
                               <select
-                                value={item.status || "Pending"}
+                                value={dropdownValue}
                                 onChange={(e) =>
                                   handleItemStatusChange(
                                     expandedIntent,
@@ -1090,7 +1064,8 @@ function TravellersIntentApproval() {
                                     e.target.value,
                                   )
                                 }
-                                disabled={item.status === "Rejected"}
+                                // Disable if already Rejected (full-form or short-form)
+                                disabled={normStatus === "Rejected"}
                               >
                                 <option value="Pending">Pending</option>
                                 <option
@@ -1115,6 +1090,8 @@ function TravellersIntentApproval() {
                               </select>
                             )}
                           </SubTd>
+
+                          {/* ── Approved Quantity ── */}
                           <SubTd>
                             {isEditing ? (
                               <input
@@ -1138,31 +1115,25 @@ function TravellersIntentApproval() {
                                       : "#eee",
                                 }}
                               />
-                            ) : item.status === "Partially Approve" ? (
-                              item.approved
-                            ) : item.status === "Approved" ||
-                              item.status === "Approve" ? (
-                              item.quantity
                             ) : (
-                              0
+                              approvedDisplay
                             )}
                           </SubTd>
+
                           <SubTd>{currentStock}</SubTd>
                           <SubTd>{intent.created_by || "Unknown"}</SubTd>
                           <SubTd>
-                            {item.status && item.status !== "Pending"
+                            {normStatus !== "Pending"
                               ? item.approved_by || "Pending"
                               : "Pending"}
                           </SubTd>
-                          <SubTd>
-                            {/* Edit button removed - status updates happen automatically via dropdown onChange */}
-                          </SubTd>
+                          <SubTd />
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <SubTd colSpan="8" style={{ textAlign: "center" }}>
+                      <SubTd colSpan="9" style={{ textAlign: "center" }}>
                         No items available
                       </SubTd>
                     </tr>

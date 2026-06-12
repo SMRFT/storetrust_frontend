@@ -9,6 +9,7 @@ import {
   FaEyeSlash,
   FaChevronDown,
   FaCalendarAlt,
+  FaPrint,
 } from "react-icons/fa";
 
 import {
@@ -234,7 +235,12 @@ function TravellersIntent() {
       ...it,
       itemName: getItemName(it),
     }));
-    printTableRef(printItems, filters.from_date, filters.to_date);
+    printTableRef(
+      printItems,
+      filters.from_date,
+      filters.to_date,
+      intent.created_by,
+    ); // ← pass created_by
   };
 
   // ── Fetch available items for dropdown ───────────────────────────────────
@@ -328,14 +334,12 @@ function TravellersIntent() {
       return;
     }
     try {
-      // Only send item_id, hsn, quantity — no itemName
       const payloadItems = items.map((it) => ({
         item_id: it.item_id,
         hsn: it.hsn,
         quantity: it.quantity,
         status: "Pending",
         is_active: true,
-        intent_status: null,
       }));
 
       const response = await apiRequest(
@@ -351,12 +355,19 @@ function TravellersIntent() {
       setHsnNumber("");
       fetchSavedData();
 
-      // Resolve names for print
+      // ── Read current user from localStorage ──────────────────────────────
+      const currentUser = localStorage.getItem("name") || "Unknown User";
+
       const printItems = payloadItems.map((it) => ({
         ...it,
         itemName: getItemName(it),
       }));
-      printTableRef(printItems, filters.from_date, filters.to_date);
+      printTableRef(
+        printItems,
+        filters.from_date,
+        filters.to_date,
+        currentUser,
+      ); // ← pass currentUser
     } catch (error) {
       console.error(error);
       alert("Something went wrong!");
@@ -380,7 +391,6 @@ function TravellersIntent() {
           item_id: itemId,
           quantity: parseInt(editedQuantity || "0", 10),
           hsn: itemHsn || "",
-          intent_status: null,
         },
       );
       if (response.success) {
@@ -474,7 +484,6 @@ function TravellersIntent() {
               is_active: true,
             },
           ],
-          intent_status: null,
         },
       );
       if (response.success) {
@@ -831,6 +840,14 @@ function TravellersIntent() {
                             title={isExpanded ? "Hide" : "View"}
                           >
                             {isExpanded ? <FaEyeSlash /> : <FaEye />}
+                          </TableActionButton>
+                          {/* Print */}
+                          <TableActionButton
+                            onClick={() => handlePrintIntent(intent)}
+                            color={colors.primary}
+                            title="Print"
+                          >
+                            <FaPrint />
                           </TableActionButton>
 
                           {/* Delete All — disabled if all items are non-Pending */}

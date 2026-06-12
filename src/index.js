@@ -14,8 +14,7 @@ console.log("REDIRECT_URL:", REDIRECT_URL);
 
 // --- Function to set token for local development ---
 function setforlocaldev() {
-  const dev_token =
-    "";
+  const dev_token = "";
   return dev_token;
 }
 

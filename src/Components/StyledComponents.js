@@ -1231,7 +1231,7 @@ export const ModalFooter = styled.div`
 export const ModalContent = styled.div`
   background: white;
   width: 100%;
-  max-width: 1400px;
+  max-width: 400px;
   max-height: calc(100vh - 32px);
   overflow-y: auto;
   box-shadow: -2px 0 10px rgba(102, 37, 73, 0.1);
@@ -2838,4 +2838,9 @@ export const SearchButton = styled.button`
     background: ${colors.primaryDark};
     transform: translateY(20%) scale(1.1);
   }
+`;
+export const SignOutWrapper = styled.div`
+  margin-top: auto;
+  padding: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 `;

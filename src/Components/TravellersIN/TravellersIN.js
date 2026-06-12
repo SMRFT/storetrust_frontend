@@ -995,8 +995,8 @@ const TravellersIN = () => {
   // ── History ────────────────────────────────────────────────────────────────
   const handleShowHistory = async (item) => {
     const hsn = String(item?.hsn ?? "").trim();
-    const itemName = String(item?.name ?? "").trim();
-    if (!itemName) {
+    const item_id = String(item?.item_id ?? "").trim();
+    if (!item_id) {
       toast.error("Please select an item first");
       return;
     }
@@ -1004,11 +1004,11 @@ const TravellersIN = () => {
       toast.error("HSN code is required");
       return;
     }
-    setSelectedItemForHistory({ ...item, hsn, itemName });
+    setSelectedItemForHistory({ ...item, hsn, item_id });
     setShowHistoryModal(true);
     setHistoryLoading(true);
     try {
-      const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodeURIComponent(hsn)}&item_name=${encodeURIComponent(itemName)}`;
+      const url = `${StoreTrustbaseurl}travellers-in/previous-purchases/?hsn=${encodeURIComponent(hsn)}&item_id=${encodeURIComponent(item_id)}`;
       const r = await apiRequest(url, "GET");
       setHistoryData(
         r.success && r.data?.status === "success" ? r.data.data || [] : [],
@@ -2024,9 +2024,19 @@ const TravellersIN = () => {
                         cursor: modalForm.name ? "pointer" : "not-allowed",
                         color: modalForm.name ? colors.primary : "#94a3b8",
                       }}
-                      onClick={() =>
-                        modalForm.name && handleShowHistory(modalForm)
-                      }
+                      onClick={() => {
+                        if (!modalForm.name) return;
+                        const matched = availableItems.find(
+                          (i) => i.itemName === modalForm.name,
+                        );
+                        handleShowHistory({
+                          ...modalForm,
+                          item_id: matched?.item_id
+                            ? String(matched.item_id)
+                            : modalForm.item_id || "",
+                          hsn: matched?.hsn || modalForm.hsn || "",
+                        });
+                      }}
                       title="View purchase history"
                     />
                   </Lbl>
@@ -2069,10 +2079,33 @@ const TravellersIN = () => {
                     Expiry Date
                   </Lbl>
                   <Input
-                    type="date"
+                    type="text"
                     name="expiry"
                     value={modalForm.expiry}
-                    onChange={handleModalChange}
+                    placeholder="MM/YYYY"
+                    maxLength={7}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^0-9/]/g, "");
+                      // Auto-insert slash after MM
+                      if (
+                        val.length === 2 &&
+                        !val.includes("/") &&
+                        modalForm.expiry.length === 1
+                      ) {
+                        val = val + "/";
+                      }
+                      // Prevent year from exceeding 4 digits
+                      const parts = val.split("/");
+                      if (parts[1] && parts[1].length > 4) return;
+                      // Validate month (01-12) only when fully typed
+                      if (parts[0] && parts[0].length === 2) {
+                        const month = parseInt(parts[0]);
+                        if (month < 1 || month > 12) return;
+                      }
+                      handleModalChange({
+                        target: { name: "expiry", value: val },
+                      });
+                    }}
                     style={{ fontSize: "0.82rem" }}
                   />
                 </InputWrapper>
@@ -2293,119 +2326,200 @@ const TravellersIN = () => {
       )}
 
       {/* ═══════════════ HISTORY MODAL ═══════════════ */}
-      {showHistoryModal && selectedItemForHistory && (
-        <HistOverlay
-          onClick={() => {
-            setShowHistoryModal(false);
-            setHistoryData([]);
-          }}
-        >
-          <HistBox onClick={(e) => e.stopPropagation()}>
-            <HistHead>
-              <div>
-                <HistTitle>
-                  Purchase History —{" "}
-                  {getItemName(selectedItemForHistory) ||
-                    selectedItemForHistory.itemName ||
-                    selectedItemForHistory.name}
-                </HistTitle>
-                <HistSubtitle>HSN: {selectedItemForHistory.hsn}</HistSubtitle>
-              </div>
-              <CloseBtn
-                onClick={() => setShowHistoryModal(false)}
-                style={{ color: "white" }}
-              >
-                <X size={18} />
-              </CloseBtn>
-            </HistHead>
-            <HistScroll>
-              {historyLoading ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: colors.textMuted,
-                  }}
-                >
-                  Loading history…
-                </div>
-              ) : historyData.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: colors.textMuted,
-                  }}
-                >
-                  No previous purchase history found.
-                </div>
-              ) : (
-                <HistTable>
-                  <thead>
-                    <tr>
-                      {[
-                        "GRN No",
-                        "Date",
-                        "Vendor",
-                        "HSN",
-                        "Item",
-                        "Unit Price",
-                        "Purchase Cost",
-                        "Qty",
-                        "Free",
-                        "Stock",
-                        "Batch",
-                        "MRP",
-                      ].map((h) => (
-                        <th key={h}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyData.map((hi, i) => {
-                      let it = selectedItemForHistory;
-                      try {
-                        const its = JSON.parse(hi.items);
-                        const m = its.find(
-                          (x) => x.hsn === selectedItemForHistory.hsn,
-                        );
-                        if (m) it = m;
-                      } catch {}
-                      if (hi.matched_item) it = hi.matched_item;
-                      return (
-                        <tr key={i}>
-                          <td>{hi.grn_number}</td>
-                          <td>
-                            {new Date(hi.date).toLocaleDateString("en-IN")}
-                          </td>
-                          <td>{hi.vendor}</td>
-                          <td>{it.hsn || "—"}</td>
-                          <td style={{ fontWeight: 600 }}>
-                            {it.name || it.item_name || getItemName(it) || "—"}
-                          </td>
-                          <td
-                            style={{ color: colors.primary, fontWeight: 600 }}
-                          >
-                            ₹{parseFloat(it.unitPrice || 0).toFixed(2)}
-                          </td>
-                          <td>
-                            ₹{parseFloat(it.purchaseCost || 0).toFixed(2)}
-                          </td>
-                          <td>{it.quantity}</td>
-                          <td>{it.free}</td>
-                          <td>{it.totalstock || 0}</td>
-                          <td>{it.batch || "—"}</td>
-                          <td>₹{parseFloat(it.mrp || 0).toFixed(2)}</td>
+      {showHistoryModal &&
+        selectedItemForHistory &&
+        (() => {
+          const prices = historyData.map((h) => {
+            let it = h;
+            try {
+              const its = JSON.parse(h.items);
+              const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
+              if (m) it = m;
+            } catch {}
+            if (h.matched_item) it = h.matched_item;
+            return parseFloat(it?.unitPrice || 0);
+          });
+          const priceStats =
+            prices.length === 0
+              ? { min: 0, max: 0, avg: 0 }
+              : {
+                  min: Math.min(...prices),
+                  max: Math.max(...prices),
+                  avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+                };
+          const totalStock = historyData.reduce((t, h) => {
+            let it = h;
+            try {
+              const its = JSON.parse(h.items);
+              const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
+              if (m) it = m;
+            } catch {}
+            if (h.matched_item) it = h.matched_item;
+            return t + parseInt(it?.totalstock || 0);
+          }, 0);
+
+          return (
+            <HistOverlay
+              onClick={() => {
+                setShowHistoryModal(false);
+                setHistoryData([]);
+              }}
+            >
+              <HistBox onClick={(e) => e.stopPropagation()}>
+                <HistHead>
+                  <div>
+                    <HistTitle>
+                      Purchase History —{" "}
+                      {getItemName(selectedItemForHistory) ||
+                        selectedItemForHistory.itemName ||
+                        selectedItemForHistory.name}
+                    </HistTitle>
+                    <HistSubtitle>
+                      HSN: {selectedItemForHistory.hsn} — Total Stock:{" "}
+                      {totalStock}
+                    </HistSubtitle>
+                    <HistSubtitle style={{ marginTop: 2 }}>
+                      Price Range: ₹{priceStats.min.toFixed(2)} – ₹
+                      {priceStats.max.toFixed(2)} | Avg: ₹
+                      {priceStats.avg.toFixed(2)}
+                    </HistSubtitle>
+                  </div>
+                  <CloseBtn
+                    onClick={() => setShowHistoryModal(false)}
+                    style={{ color: "white" }}
+                  >
+                    <X size={18} />
+                  </CloseBtn>
+                </HistHead>
+                <HistScroll>
+                  {historyLoading ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      Loading history…
+                    </div>
+                  ) : historyData.length === 0 ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      No previous purchase history found.
+                    </div>
+                  ) : (
+                    <HistTable>
+                      <thead>
+                        <tr>
+                          {[
+                            "GRN No",
+                            "Date",
+                            "Vendor",
+                            "HSN",
+                            "Item",
+                            "Unit Price",
+                            "Purchase Cost",
+                            "Qty",
+                            "Free",
+                            "Stock",
+                            "Batch",
+                            "MRP",
+                          ].map((h) => (
+                            <th key={h}>{h}</th>
+                          ))}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </HistTable>
-              )}
-            </HistScroll>
-          </HistBox>
-        </HistOverlay>
-      )}
+                      </thead>
+                      <tbody>
+                        {historyData.map((hi, i) => {
+                          let it = selectedItemForHistory;
+                          try {
+                            const its = JSON.parse(hi.items);
+                            const m = its.find(
+                              (x) => x.hsn === selectedItemForHistory.hsn,
+                            );
+                            if (m) it = m;
+                          } catch {}
+                          if (hi.matched_item) it = hi.matched_item;
+                          const unitPrice = parseFloat(it?.unitPrice || 0);
+                          const isHigh =
+                            unitPrice === priceStats.max &&
+                            priceStats.max > priceStats.min;
+                          const isLow =
+                            unitPrice === priceStats.min &&
+                            priceStats.max > priceStats.min;
+                          return (
+                            <tr key={i}>
+                              <td>{hi.grn_number}</td>
+                              <td>
+                                {new Date(hi.date).toLocaleDateString("en-IN")}
+                              </td>
+                              <td>{hi.vendor}</td>
+                              <td>{it.hsn || "—"}</td>
+                              <td style={{ fontWeight: 600 }}>
+                                {it.name ||
+                                  it.item_name ||
+                                  getItemName(it) ||
+                                  "—"}
+                              </td>
+                              <td
+                                style={{
+                                  fontWeight: 700,
+                                  color: isHigh
+                                    ? "#dc2626"
+                                    : isLow
+                                      ? "#16a34a"
+                                      : colors.primary,
+                                  background: isHigh
+                                    ? "#fef2f2"
+                                    : isLow
+                                      ? "#f0fdf4"
+                                      : "transparent",
+                                  borderRadius: 4,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {isHigh && (
+                                  <span
+                                    title="Highest price"
+                                    style={{ marginRight: 4 }}
+                                  >
+                                    🔴
+                                  </span>
+                                )}
+                                {isLow && (
+                                  <span
+                                    title="Lowest price"
+                                    style={{ marginRight: 4 }}
+                                  >
+                                    🟢
+                                  </span>
+                                )}
+                                ₹{unitPrice.toFixed(2)}
+                              </td>
+                              <td>
+                                ₹{parseFloat(it.purchaseCost || 0).toFixed(2)}
+                              </td>
+                              <td>{it.quantity}</td>
+                              <td>{it.free}</td>
+                              <td>{it.totalstock || 0}</td>
+                              <td>{it.batch || "—"}</td>
+                              <td>₹{parseFloat(it.mrp || 0).toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </HistTable>
+                  )}
+                </HistScroll>
+              </HistBox>
+            </HistOverlay>
+          );
+        })()}
 
       {/* ═══════════════ INVOICE PREVIEW ═══════════════ */}
       {showInvoicePreview && (

@@ -14,9 +14,17 @@ import {
   SubLink,
   Logo,
   MainContent,
+  IconWrapper,
+  SignOutWrapper,
 } from "./StyledComponents";
 
-import { FaCaretDown, FaClipboardList, FaBars, FaTimes } from "react-icons/fa";
+import {
+  FaCaretDown,
+  FaClipboardList,
+  FaBars,
+  FaTimes,
+  FaSignOutAlt,
+} from "react-icons/fa";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Role → accessible routes map
@@ -231,6 +239,12 @@ const Sidebar = ({ children }) => {
     }
   };
 
+  // ── Sign out handler ───────────────────────────────────────────────────
+  const handleSignOut = () => {
+    setMobileOpen(false);
+    window.location.href = "/Secure";
+  };
+
   return (
     <>
       {/* ── Mobile hamburger toggle ─────────────────────────────────────── */}
@@ -254,6 +268,14 @@ const Sidebar = ({ children }) => {
           <h1>TMC Stock</h1>
         </Logo>
         <SidebarMenu>{renderMenu()}</SidebarMenu>
+
+        {/* ── Exit ───────────────────────────────────────────────────── */}
+        <SignOutWrapper>
+          <SidebarNavLink to="#" onClick={handleSignOut}>
+            <FaSignOutAlt />
+            Exit
+          </SidebarNavLink>
+        </SignOutWrapper>
       </SidebarContainer>
 
       {/* ── Main content area (shifts right on desktop) ─────────────────── */}

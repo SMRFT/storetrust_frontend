@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { FiEdit, FiTrash2, FiSearch, FiPlus } from "react-icons/fi";
+import { History, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import apiRequest from "../apiRequest";
 import {
@@ -126,6 +127,97 @@ const InlineInput = styled(Input)`
   padding: 3px 6px;
 `;
 
+const HistOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+`;
+
+const HistBox = styled.div`
+  background: white;
+  border-radius: 10px;
+  width: 95%;
+  max-width: 1100px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(102, 37, 73, 0.25);
+`;
+
+const HistHead = styled.div`
+  background: ${colors.primary};
+  color: white;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const HistTitle = styled.div`
+  font-size: 0.9rem;
+  font-weight: 700;
+`;
+
+const HistSubtitle = styled.div`
+  font-size: 0.72rem;
+  opacity: 0.8;
+  margin-top: 2px;
+`;
+
+const HistScroll = styled.div`
+  overflow: auto;
+  flex: 1;
+  padding: 12px;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const HistTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 700px;
+  th {
+    background: ${colors.tabBg};
+    padding: 7px 10px;
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: ${colors.textMain};
+    white-space: nowrap;
+  }
+  td {
+    padding: 7px 10px;
+    border-bottom: 1px solid ${colors.border};
+  }
+  tbody tr:hover {
+    background: #f9e5e8;
+  }
+`;
+
+const CloseBtn = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ItemManagement = () => {
@@ -135,6 +227,10 @@ const ItemManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({});
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyData, setHistoryData] = useState([]);
+  const [selectedItemForHistory, setSelectedItemForHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const StoreTrustBaseUrl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
@@ -204,6 +300,29 @@ const ItemManagement = () => {
   };
 
   const handleChange = (field, value) => setForm({ ...form, [field]: value });
+
+  const handleShowHistory = async (item) => {
+    const hsn = String(item?.hsn ?? "").trim();
+    const item_id = String(item?.item_id ?? "").trim();
+    if (!item_id || !hsn) {
+      alert("HSN and Item ID are required to view history");
+      return;
+    }
+    setSelectedItemForHistory(item);
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const url = `${StoreTrustBaseUrl}travellers-in/previous-purchases/?hsn=${encodeURIComponent(hsn)}&item_id=${encodeURIComponent(item_id)}`;
+      const r = await apiRequest(url, "GET");
+      setHistoryData(
+        r.success && r.data?.status === "success" ? r.data.data || [] : [],
+      );
+    } catch {
+      setHistoryData([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   return (
     <Container>
@@ -389,6 +508,17 @@ const ItemManagement = () => {
                         ) : (
                           <>
                             <ActionBtn
+                              className="history"
+                              title="View purchase history"
+                              onClick={() => handleShowHistory(item)}
+                              style={{
+                                color: item.hsn ? colors.primary : "#94a3b8",
+                                cursor: item.hsn ? "pointer" : "not-allowed",
+                              }}
+                            >
+                              <History size={14} />
+                            </ActionBtn>
+                            <ActionBtn
                               className="edit"
                               onClick={() => handleEdit(item)}
                             >
@@ -424,6 +554,194 @@ const ItemManagement = () => {
           </div>
         )}
       </ContentArea>
+      {showHistoryModal &&
+        selectedItemForHistory &&
+        (() => {
+          const prices = historyData.map((h) => {
+            let it = h;
+            try {
+              const its = JSON.parse(h.items);
+              const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
+              if (m) it = m;
+            } catch {}
+            if (h.matched_item) it = h.matched_item;
+            return parseFloat(it?.unitPrice || 0);
+          });
+          const priceStats =
+            prices.length === 0
+              ? { min: 0, max: 0, avg: 0 }
+              : {
+                  min: Math.min(...prices),
+                  max: Math.max(...prices),
+                  avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+                };
+          const totalStock = historyData.reduce((t, h) => {
+            let it = h;
+            try {
+              const its = JSON.parse(h.items);
+              const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
+              if (m) it = m;
+            } catch {}
+            if (h.matched_item) it = h.matched_item;
+            return t + parseInt(it?.totalstock || 0);
+          }, 0);
+
+          return (
+            <HistOverlay
+              onClick={() => {
+                setShowHistoryModal(false);
+                setHistoryData([]);
+              }}
+            >
+              <HistBox onClick={(e) => e.stopPropagation()}>
+                <HistHead>
+                  <div>
+                    <HistTitle>
+                      Purchase History — {selectedItemForHistory.itemName}
+                    </HistTitle>
+                    <HistSubtitle>
+                      HSN: {selectedItemForHistory.hsn} — Total Stock:{" "}
+                      {totalStock}
+                    </HistSubtitle>
+                    {historyData.length > 0 && (
+                      <HistSubtitle style={{ marginTop: 2 }}>
+                        Price Range: ₹{priceStats.min.toFixed(2)} – ₹
+                        {priceStats.max.toFixed(2)} | Avg: ₹
+                        {priceStats.avg.toFixed(2)}
+                      </HistSubtitle>
+                    )}
+                  </div>
+                  <CloseBtn onClick={() => setShowHistoryModal(false)}>
+                    <X size={18} />
+                  </CloseBtn>
+                </HistHead>
+
+                <HistScroll>
+                  {historyLoading ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      Loading history…
+                    </div>
+                  ) : historyData.length === 0 ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      No previous purchase history found.
+                    </div>
+                  ) : (
+                    <HistTable>
+                      <thead>
+                        <tr>
+                          {[
+                            "GRN No",
+                            "Date",
+                            "Vendor",
+                            "HSN",
+                            "Item",
+                            "Unit Price",
+                            "Purchase Cost",
+                            "Qty",
+                            "Free",
+                            "Stock",
+                            "Batch",
+                            "MRP",
+                          ].map((h) => (
+                            <th key={h}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyData.map((hi, i) => {
+                          let it = selectedItemForHistory;
+                          try {
+                            const its = JSON.parse(hi.items);
+                            const m = its.find(
+                              (x) => x.hsn === selectedItemForHistory.hsn,
+                            );
+                            if (m) it = m;
+                          } catch {}
+                          if (hi.matched_item) it = hi.matched_item;
+                          const unitPrice = parseFloat(it?.unitPrice || 0);
+                          const isHigh =
+                            unitPrice === priceStats.max &&
+                            priceStats.max > priceStats.min;
+                          const isLow =
+                            unitPrice === priceStats.min &&
+                            priceStats.max > priceStats.min;
+                          return (
+                            <tr key={i}>
+                              <td>{hi.grn_number}</td>
+                              <td>
+                                {new Date(hi.date).toLocaleDateString("en-IN")}
+                              </td>
+                              <td>{hi.vendor_name}</td>
+                              <td>{it.hsn || "—"}</td>
+                              <td style={{ fontWeight: 600 }}>
+                                {it.itemName || it.name || it.item_name || "—"}
+                              </td>
+                              <td
+                                style={{
+                                  fontWeight: 700,
+                                  color: isHigh
+                                    ? "#dc2626"
+                                    : isLow
+                                      ? "#16a34a"
+                                      : colors.primary,
+                                  background: isHigh
+                                    ? "#fef2f2"
+                                    : isLow
+                                      ? "#f0fdf4"
+                                      : "transparent",
+                                  borderRadius: 4,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {isHigh && (
+                                  <span
+                                    title="Highest price"
+                                    style={{ marginRight: 4 }}
+                                  >
+                                    🔴
+                                  </span>
+                                )}
+                                {isLow && (
+                                  <span
+                                    title="Lowest price"
+                                    style={{ marginRight: 4 }}
+                                  >
+                                    🟢
+                                  </span>
+                                )}
+                                ₹{unitPrice.toFixed(2)}
+                              </td>
+                              <td>
+                                ₹{parseFloat(it.purchaseCost || 0).toFixed(2)}
+                              </td>
+                              <td>{it.quantity}</td>
+                              <td>{it.free}</td>
+                              <td>{it.totalstock || 0}</td>
+                              <td>{it.batch || "—"}</td>
+                              <td>₹{parseFloat(it.mrp || 0).toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </HistTable>
+                  )}
+                </HistScroll>
+              </HistBox>
+            </HistOverlay>
+          );
+        })()}
     </Container>
   );
 };

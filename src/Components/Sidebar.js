@@ -175,10 +175,10 @@ const Sidebar = ({ children }) => {
           <>
             <TravellersDropdown
               links={[
-                { to: "/TravellersIntent", label: "Travellers Intent" },
+                { to: "/TravellersIntent", label: "Travellers Indent" },
                 {
                   to: "/TravellersIntentApproval",
-                  label: "Travellers Intent Approval",
+                  label: "Travellers Indent Approval",
                 },
                 { to: "/GRNGeneration", label: "GRN Generation" },
                 { to: "/TravellersINGRNReport", label: "GRN Report" },
@@ -196,7 +196,7 @@ const Sidebar = ({ children }) => {
                 { to: "/GRNGeneration", label: "GRN Generation" },
                 {
                   to: "/TravellersIntentApproval",
-                  label: "Travellers Intent Approval",
+                  label: "Travellers Indent Approval",
                 },
                 { to: "/TravellersINGRNReport", label: "GRN Report" },
               ]}
@@ -232,7 +232,7 @@ const Sidebar = ({ children }) => {
           <SidebarItem>
             <SidebarNavLink to="/TravellersIntent">
               <FaClipboardList />
-              Travellers Intent
+              Travellers Indent
             </SidebarNavLink>
           </SidebarItem>
         );

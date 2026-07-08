@@ -15,30 +15,49 @@ import {
 import {
   colors,
   Container,
+  PremiumHeader as Header,
+  PremiumTitle as Title,
+  PremiumSubheading as Subheading,
+  FormRow,
   FormGroup,
+  Label,
   InputWrapper,
   IconWrapper,
-  Td,
-  TableActionButton,
-  FormRow,
+  Input,
   AddButtonContainer,
   AddButton,
   ButtonGroup,
   Button,
-  Title,
-  Subheading,
-  FiltersSection,
-  FiltersGrid,
-  Label,
-  Input,
   Table,
   Th,
-  CloseButton,
+  Td,
+  TableActionButton,
   SubTable,
   SubTh,
   SubTd,
-  Header,
+  PremiumStatusText as StatusText,
 } from "../StyledComponents";
+import styled from "styled-components";
+
+const FiltersSection = styled.div`
+  background: rgba(252, 239, 238, 0.6);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 25px;
+  border: 1px solid rgba(232, 200, 208, 0.5);
+`;
+
+const FiltersGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+  gap: 20px;
+  align-items: flex-end;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+`;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,15 +136,14 @@ const printTableRef = (
   const fmt = (d) =>
     d
       ? new Date(d).toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
       : "";
 
   const tableHtml = `
-    <div style="text-align:center;font-weight:bold;font-size:18px;">SHANMUGA HOSPITAL LIMITED</div>
-    <div style="text-align:center;font-size:14px;">51/24, Saradha College Road, Salem - 636007</div>
+    <div style="text-align:center;font-weight:bold;font-size:18px;">Travellers Inn Indent Request</div>
     ${fromDate || toDate ? `<div style="margin:10px 0;font-size:14px;">Date: ${fmt(fromDate)}${fromDate && toDate ? " – " : ""}${fmt(toDate)}</div>` : ""}
     <table style="width:100%;border-collapse:collapse;font-family:'Segoe UI',sans-serif;margin-top:20px;">
       <thead>
@@ -136,20 +154,19 @@ const printTableRef = (
         </tr>
       </thead>
       <tbody>
-        ${
-          items.length > 0
-            ? items
-                .map(
-                  (item, idx) => `
+        ${items.length > 0
+      ? items
+        .map(
+          (item, idx) => `
               <tr>
                 <td style="border:1px solid #d6f0ff;padding:12px;">${idx + 1}</td>
                 <td style="border:1px solid #d6f0ff;padding:12px;">${item.itemName || "—"}</td>
                 <td style="border:1px solid #d6f0ff;padding:12px;">${item.quantity}</td>
               </tr>`,
-                )
-                .join("")
-            : `<tr><td colspan="3" style="border:1px solid #d6f0ff;padding:12px;text-align:center;">No items added yet.</td></tr>`
-        }
+        )
+        .join("")
+      : `<tr><td colspan="3" style="border:1px solid #d6f0ff;padding:12px;text-align:center;">No items added yet.</td></tr>`
+    }
       </tbody>
     </table>
     <div style="margin-top:40px;display:flex;justify-content:flex-end;font-size:14px;font-style:italic;">
@@ -437,7 +454,7 @@ function TravellersIntent() {
     const intentId = intent.intent_number || intent.id;
     const itemId = item.item_id || item.id;
     if (!intentId) {
-      alert("Intent identifier not found.");
+      alert("Indent identifier not found.");
       return;
     }
     if (!itemId) {
@@ -496,6 +513,8 @@ function TravellersIntent() {
     }
   };
 
+
+
   const handleToggleView = (intentNumber) => {
     setExpandedIntents((prev) => {
       const s = new Set(prev);
@@ -511,7 +530,7 @@ function TravellersIntent() {
   return (
     <Container>
       <Header>
-        <Title>Travellers Intent Form</Title>
+        <Title>Travellers Indent Form</Title>
       </Header>
 
       {/* ── Form Row ── */}
@@ -708,7 +727,7 @@ function TravellersIntent() {
 
       {/* ── Saved Intents ── */}
       <div style={{ marginTop: "40px" }}>
-        <Subheading>Saved Traveller Intents</Subheading>
+        <Subheading>Saved Traveller Indents</Subheading>
 
         <FiltersSection>
           <FiltersGrid>
@@ -765,7 +784,7 @@ function TravellersIntent() {
             <tr>
               <Th>S.No</Th>
               <Th>Date</Th>
-              <Th>Intent Number</Th>
+              <Th>Indent Number</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
             </tr>
@@ -886,12 +905,13 @@ function TravellersIntent() {
                                 <SubTh>Requested Quantity</SubTh>
                                 <SubTh>Status</SubTh>
                                 <SubTh>Approved Quantity</SubTh>
+                                <SubTh>Dispatch Status</SubTh>
                                 <SubTh>Actions</SubTh>
                               </tr>
                             </thead>
                             <tbody>
                               {Array.isArray(intent.items) &&
-                              intent.items.length > 0 ? (
+                                intent.items.length > 0 ? (
                                 intent.items.map((item, itemIndex) => {
                                   const itemKey = item.item_id || item.id;
                                   const isEditing =
@@ -933,28 +953,28 @@ function TravellersIntent() {
                                             fontWeight: 600,
                                             backgroundColor:
                                               item.status === "Approved" ||
-                                              item.status === "Approve"
+                                                item.status === "Approve"
                                                 ? "#d4edda"
                                                 : item.status === "Rejected" ||
-                                                    item.status === "Reject"
+                                                  item.status === "Reject"
                                                   ? "#f8d7da"
                                                   : item.status ===
-                                                        "Partially Approved" ||
-                                                      item.status ===
-                                                        "Partially Approve"
+                                                    "Partially Approved" ||
+                                                    item.status ===
+                                                    "Partially Approve"
                                                     ? "#cce5ff"
                                                     : "#fff3cd",
                                             color:
                                               item.status === "Approved" ||
-                                              item.status === "Approve"
+                                                item.status === "Approve"
                                                 ? "#155724"
                                                 : item.status === "Rejected" ||
-                                                    item.status === "Reject"
+                                                  item.status === "Reject"
                                                   ? "#721c24"
                                                   : item.status ===
-                                                        "Partially Approved" ||
-                                                      item.status ===
-                                                        "Partially Approve"
+                                                    "Partially Approved" ||
+                                                    item.status ===
+                                                    "Partially Approve"
                                                     ? "#004085"
                                                     : "#856404",
                                           }}
@@ -964,7 +984,7 @@ function TravellersIntent() {
                                             : item.status === "Reject"
                                               ? "Rejected"
                                               : item.status ===
-                                                  "Partially Approve"
+                                                "Partially Approve"
                                                 ? "Partially Approved"
                                                 : item.status || "Pending"}
                                         </span>
@@ -990,6 +1010,16 @@ function TravellersIntent() {
                                         >
                                           {item.approved ?? 0}
                                         </span>
+                                      </SubTd>
+
+                                      {/* Dispatch Status */}
+                                      <SubTd>
+                                        <StatusText
+                                          className={`status-${item.is_dispatch ? "dispatched" : "not-dispatched"}`}
+                                          style={{ padding: "2px 8px", fontSize: "0.72rem" }}
+                                        >
+                                          {item.is_dispatch ? "Dispatched" : "Not Dispatched"}
+                                        </StatusText>
                                       </SubTd>
 
                                       {/* Actions */}
@@ -1025,9 +1055,9 @@ function TravellersIntent() {
                                                 onClick={() =>
                                                   isPending
                                                     ? handleEditSavedItem(
-                                                        intent,
-                                                        item,
-                                                      )
+                                                      intent,
+                                                      item,
+                                                    )
                                                     : null
                                                 }
                                                 color={colors.textMain}
@@ -1054,11 +1084,11 @@ function TravellersIntent() {
                                                 onClick={() =>
                                                   isPending
                                                     ? handleDeleteSavedItem(
-                                                        intentId,
-                                                        intent.date,
-                                                        item.item_id || item.id,
-                                                        item.hsn || "",
-                                                      )
+                                                      intentId,
+                                                      intent.date,
+                                                      item.item_id || item.id,
+                                                      item.hsn || "",
+                                                    )
                                                     : null
                                                 }
                                                 color={colors.danger}
@@ -1089,7 +1119,7 @@ function TravellersIntent() {
                               ) : (
                                 <tr>
                                   <SubTd
-                                    colSpan="5"
+                                    colSpan="6"
                                     style={{ textAlign: "center" }}
                                   >
                                     No items available
@@ -1107,7 +1137,7 @@ function TravellersIntent() {
             ) : (
               <tr>
                 <Td colSpan="5" style={{ textAlign: "center" }}>
-                  No saved intents found.
+                  No saved indents found.
                 </Td>
               </tr>
             )}

@@ -147,10 +147,10 @@ const HistoryModal = ({ show, onClose, item, historyData, loading }) => {
     prices.length === 0
       ? { min: 0, max: 0, avg: 0 }
       : {
-          min: Math.min(...prices),
-          max: Math.max(...prices),
-          avg: prices.reduce((s, p) => s + p, 0) / prices.length,
-        };
+        min: Math.min(...prices),
+        max: Math.max(...prices),
+        avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+      };
   const totalStock = safeHistoryData.reduce(
     (t, h) => t + parseInt(h.matched_item?.totalstock || 0),
     0,
@@ -295,7 +295,7 @@ const EnhancedViewModal = ({
   return (
     <Portal>
       <ModalOverlay onClick={onClose} style={{ zIndex: 9000 }}>
-        <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalContent onClick={(e) => e.stopPropagation()} style={{ maxWidth: "800px" }}>
           <ModalScrollContainer>
             <ModalHeader>
               <ModalTitle>
@@ -384,7 +384,7 @@ const EnhancedViewModal = ({
                     <DetailValue className="currency">
                       {formatCurrency(
                         selectedRecord.payment_details?.pending_amount ??
-                          selectedRecord.pending_amount,
+                        selectedRecord.pending_amount,
                       )}
                     </DetailValue>
                   </DetailItem>
@@ -612,29 +612,28 @@ const PaymentModal = ({
             {["NEFT", "UPI", "Cheque", "Bank Transfer"].includes(
               paymentDetails.payment_method,
             ) && (
-              <PaymentInputWrapper>
-                <PaymentLabel>
-                  {paymentDetails.payment_method === "UPI"
-                    ? "UPI Transaction ID *"
-                    : paymentDetails.payment_method === "Cheque"
-                      ? "Cheque Number *"
-                      : "Transaction Details *"}
-                </PaymentLabel>
-                <PaymentInput
-                  type="text"
-                  value={paymentDetails.payment_details}
-                  onChange={(e) => onChange("payment_details", e.target.value)}
-                  placeholder={`Enter ${
-                    paymentDetails.payment_method === "UPI"
-                      ? "UPI Transaction ID"
+                <PaymentInputWrapper>
+                  <PaymentLabel>
+                    {paymentDetails.payment_method === "UPI"
+                      ? "UPI Transaction ID *"
                       : paymentDetails.payment_method === "Cheque"
-                        ? "Cheque Number"
-                        : "Transaction Details"
-                  }`}
-                  required
-                />
-              </PaymentInputWrapper>
-            )}
+                        ? "Cheque Number *"
+                        : "Transaction Details *"}
+                  </PaymentLabel>
+                  <PaymentInput
+                    type="text"
+                    value={paymentDetails.payment_details}
+                    onChange={(e) => onChange("payment_details", e.target.value)}
+                    placeholder={`Enter ${paymentDetails.payment_method === "UPI"
+                        ? "UPI Transaction ID"
+                        : paymentDetails.payment_method === "Cheque"
+                          ? "Cheque Number"
+                          : "Transaction Details"
+                      }`}
+                    required
+                  />
+                </PaymentInputWrapper>
+              )}
 
             <PaymentButtonContainer>
               <CustomButton variant="cancel" onClick={onClose}>
@@ -929,8 +928,8 @@ const GRNReport = () => {
       } else {
         toast.error(
           response.error ||
-            response.data?.message ||
-            "Failed to update payment",
+          response.data?.message ||
+          "Failed to update payment",
         );
       }
     } catch {
@@ -1048,9 +1047,8 @@ const GRNReport = () => {
               </div>
             </div>
           </div>
-          ${
-            record.items && record.items.length > 0
-              ? `
+          ${record.items && record.items.length > 0
+        ? `
           <table class="invoice-table">
             <thead>
               <tr>
@@ -1070,8 +1068,8 @@ const GRNReport = () => {
             </thead>
             <tbody>
               ${record.items
-                .map(
-                  (item, index) => `
+          .map(
+            (item, index) => `
                 <tr>
                   <td class="center-cell">${index + 1}.</td>
                   <td class="product-cell">${item.itemName || "N/A"}</td>
@@ -1087,8 +1085,8 @@ const GRNReport = () => {
                   <td class="number-cell">₹${parseFloat(item.purchaseCost || 0).toFixed(2)}</td>
                 </tr>
               `,
-                )
-                .join("")}
+          )
+          .join("")}
               <tr class="total-row">
                 <td colspan="10" class="center-cell">Total</td>
                 <td class="number-cell">₹${parseFloat(record.total_amount || 0).toFixed(2)}</td>
@@ -1096,8 +1094,8 @@ const GRNReport = () => {
             </tbody>
           </table>
           `
-              : ""
-          }
+        : ""
+      }
           <div class="invoice-summary">
             <div class="summary-layout">
               <div class="gst-amounts">
@@ -1204,13 +1202,17 @@ const GRNReport = () => {
       (a.vendor || "").localeCompare(b.vendor || ""),
     );
     const groups = {};
-    let grandTotal = 0;
+    let grossBillTotal = 0;
+    let grossPaidTotal = 0;
+    let grossPendingTotal = 0;
+
     sorted.forEach((row) => {
       const v = row.vendor || "N/A";
-      if (!groups[v]) groups[v] = { rows: [], total: 0 };
+      if (!groups[v]) groups[v] = { rows: [] };
       groups[v].rows.push(row);
-      groups[v].total += parseFloat(row.pending_amount || 0);
-      grandTotal += parseFloat(row.pending_amount || 0);
+      grossBillTotal += parseFloat(row.total_amount || 0);
+      grossPaidTotal += parseFloat(row.total_amount_paid || 0);
+      grossPendingTotal += parseFloat(row.pending_amount || 0);
     });
 
     let tableRows = "";
@@ -1219,18 +1221,41 @@ const GRNReport = () => {
       g.rows.sort((a, b) =>
         (a.grn_number || "").localeCompare(b.grn_number || ""),
       );
-      tableRows += `<tr style="background:#f0f0f0"><td colspan="9" style="font-weight:bold;padding:8px">${vendor}</td><td rowspan="${g.rows.length + 1}" style="font-weight:bold;text-align:right;background:#fff3cd">${formatCurrency(g.total)}</td></tr>`;
+
+      let groupBillTotal = 0;
+      let groupPaidTotal = 0;
+      let groupPendingTotal = 0;
+
+      g.rows.forEach((row) => {
+        groupBillTotal += parseFloat(row.total_amount || 0);
+        groupPaidTotal += parseFloat(row.total_amount_paid || 0);
+        groupPendingTotal += parseFloat(row.pending_amount || 0);
+      });
+
+      // Vendor header row
+      tableRows += `<tr style="background:#f0f0f0"><td colspan="9" style="font-weight:bold;padding:8px">${vendor}</td></tr>`;
+
       g.rows.forEach((row, i) => {
         const [p1] = formatPaymentHistory(row.payment_status);
         tableRows += `<tr>
           <td style="text-align:center">${i + 1}</td><td>${row.grn_number || "N/A"}</td>
           <td>${row.invoice_no || "N/A"}</td><td>${formatDate(row.invoice_date)}</td>
           <td style="text-align:right">${formatCurrency(row.total_amount)}</td>
-          <td>${row.payment_details?.status || "N/A"}</td><td>${p1}</td>
+          <td>${row.payment_details?.status || "-"}</td><td>${p1}</td>
           <td style="text-align:right">${formatCurrency(row.total_amount_paid)}</td>
           <td style="text-align:right">${formatCurrency(row.pending_amount)}</td>
         </tr>`;
       });
+
+      // Yellow Total Row for each vendor group
+      tableRows += `<tr style="background:#fff3cd;font-weight:bold" class="solid-border">
+        <td colspan="4" style="text-align:right;padding:8px">Total</td>
+        <td style="text-align:right;padding:8px">${formatCurrency(groupBillTotal)}</td>
+        <td style="text-align:center;padding:8px">—</td>
+        <td style="text-align:center;padding:8px">—</td>
+        <td style="text-align:right;padding:8px">${formatCurrency(groupPaidTotal)}</td>
+        <td style="text-align:right;padding:8px">${formatCurrency(groupPendingTotal)}</td>
+      </tr>`;
     });
 
     const from = filters.from_date ? formatDate(filters.from_date) : "N/A";
@@ -1244,6 +1269,7 @@ const GRNReport = () => {
         h1{text-align:center;font-size:21px;margin:10px 0}
         table{border-collapse:collapse;width:100%;font-size:18px;border:1px solid #333}
         th,td{border:1px dashed #999;padding:5px 5px}
+        tr.solid-border td, tr.solid-border th{border:1px solid #333 !important}
         tr td:first-child,tr th:first-child{border-left:none}
         tr td:last-child, tr th:last-child {border-right:none}
         thead tr:first-child th{border-top:none}
@@ -1254,12 +1280,16 @@ const GRNReport = () => {
       <table><thead><tr>
         <th>Sl. No</th><th>GRN Number</th><th>Invoice No</th><th>Inv. Date</th>
         <th>Bill Amount</th><th>Payment Status</th><th>Advance (₹)</th>
-        <th>Amount Paid</th><th>Pending Amount</th><th>Grand Total</th>
+        <th>Amount Paid</th><th>Pending Amount</th>
       </tr></thead><tbody>
         ${tableRows}
-        <tr style="background:#d4edda;font-weight:bold">
-          <td colspan="9" style="text-align:right;font-size:18px">Gross Total:</td>
-          <td style="text-align:right;font-size:18px">${formatCurrency(grandTotal)}</td>
+        <tr style="background:#d4edda;font-weight:bold" class="solid-border">
+          <td colspan="4" style="text-align:right;font-size:18px">Gross Total:</td>
+          <td style="text-align:right;font-size:18px">${formatCurrency(grossBillTotal)}</td>
+          <td style="text-align:center;font-size:18px">—</td>
+          <td style="text-align:center;font-size:18px">—</td>
+          <td style="text-align:right;font-size:18px">${formatCurrency(grossPaidTotal)}</td>
+          <td style="text-align:right;font-size:18px">${formatCurrency(grossPendingTotal)}</td>
         </tr>
       </tbody></table></body></html>`);
     printWindow.document.close();

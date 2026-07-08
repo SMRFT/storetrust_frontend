@@ -2844,3 +2844,92 @@ export const SignOutWrapper = styled.div`
   padding: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 `;
+
+export const PremiumHeader = styled.div`
+  background: linear-gradient(135deg, #662549 0%, #8c3b6a 100%);
+  border-radius: 12px;
+  padding: 24px 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 8px 24px rgba(102, 37, 73, 0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  @media (max-width: 768px) {
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+`;
+
+export const PremiumTitle = styled.h2`
+  color: #ffffff;
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+
+  @media (max-width: 768px) {
+    font-size: 1.3rem;
+  }
+`;
+
+export const PremiumSubheading = styled.h3`
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #662549;
+  margin-top: 30px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 4px solid #662549;
+  padding-left: 12px;
+`;
+
+
+
+export const PremiumStatusText = styled.span`
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  display: inline-block;
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+
+  &.status-approved, &.status-approve {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+
+  &.status-rejected, &.status-reject {
+    background-color: #fee2e2;
+    color: #991b1b;
+  }
+
+  &.status-partially-approved, &.status-partially-approve {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+
+  &.status-pending {
+    background-color: #e0e7ff;
+    color: #3730a3;
+  }
+
+  &.status-dispatched {
+    background-color: #f3e8ff;
+    color: #6b21a8;
+  }
+
+  &.status-partially-dispatched {
+    background-color: #fae8ff;
+    color: #86198f;
+  }
+
+  &.status-not-dispatched {
+    background-color: #f3f4f6;
+    color: #374151;
+  }
+`;

@@ -13,18 +13,18 @@ import apiRequest from "../apiRequest";
 import * as XLSX from "xlsx";
 import {
   ModalOverlay,
-  Header,
+  PremiumHeader as Header,
   ModalContent,
   ModalInput,
   ModalButtons,
   TableCell as Td,
-  StatusText,
+  PremiumStatusText as StatusText,
   Overlay,
   PopupContainer,
   Loading,
   ErrorMsg,
   Container,
-  Title,
+  PremiumTitle as Title,
   TopRightButtons,
   FilterContainer,
   FilterGroup,
@@ -89,6 +89,16 @@ const getIntentStatus = (items) => {
   if (statuses.includes("Rejected")) return "Rejected";
 
   return "Pending";
+};
+
+const getIntentDispatchStatus = (items) => {
+  if (!items || items.length === 0) return "Not Dispatched";
+
+  const dispatchStates = items.map((i) => i.is_dispatch === true);
+
+  if (dispatchStates.every((d) => d === true)) return "Dispatched";
+  if (dispatchStates.some((d) => d === true)) return "Partially Dispatched";
+  return "Not Dispatched";
 };
 
 const toRoman = (num) => {
@@ -249,12 +259,17 @@ function TravellersIntentApproval() {
   const [error, setError] = useState(null);
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
+  const [searchIndent, setSearchIndent] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dispatchFilter, setDispatchFilter] = useState("");
   const [expandedIntent, setExpandedIntent] = useState(null);
   const [availableStockMap, setAvailableStockMap] = useState({});
   const [editingRow, setEditingRow] = useState(null);
   const [editValues, setEditValues] = useState({ approved: "", status: "" });
   const [modalVisible, setModalVisible] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [selectedDispatchItems, setSelectedDispatchItems] = useState([]);
+  const [isBatchUpdating, setIsBatchUpdating] = useState(false);
   const [modalData, setModalData] = useState({
     intentId: null,
     itemIndex: null,
@@ -267,6 +282,10 @@ function TravellersIntentApproval() {
   useEffect(() => {
     fetchData();
   }, [fromDate, toDate]);
+
+  useEffect(() => {
+    setSelectedDispatchItems([]);
+  }, [expandedIntent]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -287,9 +306,9 @@ function TravellersIntentApproval() {
 
       const activeIntents = Array.isArray(result)
         ? result.filter(
-            (intent) =>
-              intent.is_active !== false || intent.is_active === undefined,
-          )
+          (intent) =>
+            intent.is_active !== false || intent.is_active === undefined,
+        )
         : [];
 
       const intentsWithDetails = activeIntents.map((intent) => {
@@ -318,6 +337,9 @@ function TravellersIntentApproval() {
   const handleClearFilters = () => {
     setFromDate(today);
     setToDate(today);
+    setSearchIndent("");
+    setStatusFilter("");
+    setDispatchFilter("");
   };
 
   const handleToggleView = async (intentNumber) => {
@@ -638,10 +660,104 @@ function TravellersIntentApproval() {
     setModalVisible(false);
   };
 
+  const handleToggleDispatchItem = (itemIndex) => {
+    setSelectedDispatchItems((prev) => {
+      if (prev.includes(itemIndex)) {
+        return prev.filter((idx) => idx !== itemIndex);
+      } else {
+        return [...prev, itemIndex];
+      }
+    });
+  };
+
+  const handleSelectAllDispatch = (dispatchableIndices) => {
+    const allSelected =
+      dispatchableIndices.length > 0 &&
+      dispatchableIndices.every((idx) => selectedDispatchItems.includes(idx));
+    if (allSelected) {
+      setSelectedDispatchItems((prev) =>
+        prev.filter((idx) => !dispatchableIndices.includes(idx)),
+      );
+    } else {
+      setSelectedDispatchItems((prev) => {
+        const next = [...prev];
+        dispatchableIndices.forEach((idx) => {
+          if (!next.includes(idx)) next.push(idx);
+        });
+        return next;
+      });
+    }
+  };
+
+  const handleBatchDispatch = async () => {
+    if (selectedDispatchItems.length === 0 || !expandedIntent) return;
+
+    try {
+      setIsBatchUpdating(true);
+      const intent = intents.find((i) => i.intent_number === expandedIntent);
+      if (!intent) return;
+
+      const StoreTrustbaseurl =
+        process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
+
+      const itemsToUpdate = selectedDispatchItems.map((itemIndex) => {
+        const item = intent.items[itemIndex];
+        return {
+          item_id: item.item_id,
+          is_dispatch: true,
+          hsn: item.hsn || "",
+        };
+      });
+
+      const data = {
+        intent_number: expandedIntent,
+        date: intent.date,
+        items: itemsToUpdate,
+      };
+
+      console.log("Sending batch dispatch request:", data);
+      const response = await apiRequest(
+        `${StoreTrustbaseurl}travellers-intent/update-item/`,
+        "PATCH",
+        data,
+      );
+
+      if (!response.success) {
+        throw new Error(response.error || "Failed to update dispatch status.");
+      }
+
+      alert("Items successfully marked as dispatched!");
+      setSelectedDispatchItems([]);
+      await fetchData();
+
+      // Refresh stock & dynamic calculations
+      const freshIntents = intents.map((i) => {
+        if (i.intent_number === expandedIntent) {
+          const updatedItems = i.items.map((item, idx) => {
+            if (selectedDispatchItems.includes(idx)) {
+              return {
+                ...item,
+                is_dispatch: true,
+              };
+            }
+            return item;
+          });
+          return { ...i, items: updatedItems };
+        }
+        return i;
+      });
+      setIntents(updateDynamicStock(freshIntents));
+
+    } catch (err) {
+      console.error("Failed to batch update dispatch:", err);
+      alert(`Error updating dispatch: ${err.message}`);
+    } finally {
+      setIsBatchUpdating(false);
+    }
+  };
+
   const handlePrintTable = async () => {
-    const fromLabel = fromDate
-      ? new Date(fromDate).toLocaleDateString()
-      : "All";
+    const fromLabel = fromDate ? new Date(fromDate).toLocaleDateString() : "All";
     const toLabel = toDate ? new Date(toDate).toLocaleDateString() : "All";
 
     // ── Fetch stock for every item that hasn't been loaded yet ──
@@ -650,7 +766,6 @@ function TravellersIntentApproval() {
         const items = Array.isArray(intent.items) ? intent.items : [];
         const itemsWithStock = await Promise.all(
           items.map(async (item) => {
-            // Use already-fetched value if available, otherwise call the API
             if (
               item.dynamicTotalStock !== undefined ||
               item.totalStock !== undefined
@@ -671,158 +786,284 @@ function TravellersIntentApproval() {
     );
 
     let printContent = `
-  <style>
-    body { font-family: 'Segoe UI', sans-serif; margin: 20px; }
-    h2 { text-align: center; margin-bottom: 4px; }
-    .date-range { text-align: center; font-size: 13px; color: #555; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid black; padding: 8px; }
-    th { color: black; font-weight: bold; font-size: 14px; text-align: center; }
-    td.num { text-align: right; }
-    td.text { text-align: left; }
-    td.center { text-align: center; }
-  </style>
-  <h2>Traveller Intent Report</h2>
-  <div class="date-range">Date Range: ${fromLabel} &mdash; ${toLabel}</div>
-  <table>
-    <thead>
-      <tr>
-        <th>S.No</th>
-        <th>Date</th>
-        <th>Intent Number</th>
-        <th>Item Name</th>
-        <th>Quantity</th>
-        <th>Approved</th>
-        <th>Total Stock</th>
-        <th>Item Status</th>
-        <th>Raised By</th>
-        <th>Approved By / Rejected By</th>
-      </tr>
-    </thead>
-    <tbody>
+    <style>
+      body { font-family: 'Segoe UI', sans-serif; margin: 30px; color: #2e1a23; }
+      .intent-section {
+        margin-bottom: 50px;
+        border-bottom: 2.5px dashed #e8c8d0;
+        padding-bottom: 35px;
+      }
+      .intent-section:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 0;
+      }
+      h2 { text-align: center; margin-bottom: 25px; color: #662549; }
+      
+      .info-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      .info-table th, .info-table td {
+        border: 1.5px solid #e8c8d0;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+      .info-table th {
+        background-color: #fcefee;
+        color: #662549;
+        font-weight: 700;
+        text-align: left;
+      }
+      
+      .section-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #662549;
+        margin-top: 20px;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .items-table th, .items-table td {
+        border: 1px solid rgba(232, 200, 208, 0.6);
+        padding: 10px 12px;
+        font-size: 13px;
+        text-align: left;
+      }
+      .items-table th {
+        background-color: #faf6f7;
+        color: #662549;
+        font-weight: 700;
+      }
+      .center { text-align: center; }
+    </style>
+    <h2>Travellers Inn Indent Report</h2>
   `;
 
-    let serial = 1;
     intentsWithStock.forEach((intent) => {
       const items = Array.isArray(intent.items) ? intent.items : [];
-      if (items.length > 0) {
-        items.forEach((item) => {
-          const totalStockDisplay =
-            item.dynamicTotalStock !== undefined
-              ? item.dynamicTotalStock
-              : (item.totalStock ?? 0);
+      const intentId = intent.intent_number || intent.id;
+      const status = getIntentStatus(items);
+      const dispatchStatus = getIntentDispatchStatus(items);
 
-          printContent += `
-          <tr>
-            <td class="num">${serial}</td>
-            <td class="center">${new Date(intent.date).toLocaleDateString()}</td>
-            <td class="center">${intent.intent_number}</td>
-            <td class="text">${item.itemName}</td>
-            <td class="num">${item.quantity}</td>
-            <td class="num">${item.approved || 0}</td>
-            <td class="num">${totalStockDisplay}</td>
-            <td class="text">${normalizeStatus(item.status)}</td>
-            <td class="text">${intent.created_by || "Unknown"}</td>
-            <td class="text">${item.approved_by || "Pending"}</td>
-          </tr>
-        `;
-          serial++;
-        });
-      } else {
-        printContent += `
-        <tr>
-          <td class="num">${serial}</td>
-          <td colspan="8" style="text-align:center; font-style:italic;">No items</td>
-        </tr>
+      printContent += `
+        <div class="intent-section">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Indent Number</th>
+                <th>Date</th>
+                <th>Raised By</th>
+                <th>Status</th>
+                <th>Dispatch Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${intentId}</td>
+                <td>${new Date(intent.date).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })}</td>
+                <td>${intent.created_by || "Unknown"}</td>
+                <td>${status}</td>
+                <td>${dispatchStatus}</td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <div class="section-title">ITEMS (${items.length})</div>
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th class="center" style="width: 60px;">ID</th>
+                <th>Item Name</th>
+                <th class="center">Requested Qty</th>
+                <th class="center">Approved Qty</th>
+                <th>Approved By</th>
+                <th>Dispatch Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.length > 0
+          ? items
+            .map(
+              (item, idx) => `
+                  <tr>
+                    <td class="center">#${idx + 1}</td>
+                    <td>${item.itemName || "—"}</td>
+                    <td class="center">${item.quantity}</td>
+                    <td class="center">${item.status === "Reject" || item.status === "Rejected" ? 0 : (item.approved ?? item.quantity)}</td>
+                    <td>${item.approved_by || "—"}</td>
+                    <td>${item.is_dispatch ? "Dispatched" : "Not Dispatched"}</td>
+                  </tr>`
+            )
+            .join("")
+          : `<tr><td colspan="6" class="center">No items.</td></tr>`
+        }
+            </tbody>
+          </table>
+        </div>
       `;
-        serial++;
-      }
     });
-
-    printContent += `</tbody></table>`;
 
     const win = window.open("", "_blank");
     win.document.write(`
     <html>
-      <head><title>Traveller Intent Report (${fromLabel} to ${toLabel})</title></head>
-      <body>${printContent}</body>
+      <head>
+        <title>Traveller Indent Report (${fromLabel} to ${toLabel})</title>
+      </head>
+      <body>
+        ${printContent}
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() { window.close(); }, 500);
+          };
+        </script>
+      </body>
     </html>
   `);
     win.document.close();
-    win.print();
   };
 
   const handleExportExcel = () => {
     const exportData = [];
-    filteredIntents.forEach((intent, idx) => {
-      exportData.push({
-        "S.No": idx + 1,
-        Date: new Date(intent.date).toLocaleDateString(),
-        "Intent Number": intent.intent_number,
-      });
+
+    // 1. Report Title Row (Once at the top)
+    exportData.push({
+      Col1: "Travellers Inn Indent Report",
+    });
+    exportData.push({});
+
+    filteredIntents.forEach((intent) => {
       const items = Array.isArray(intent.items) ? intent.items : [];
+      const status = getIntentStatus(items);
+      const dispatchStatus = getIntentDispatchStatus(items);
+
+      // 2. Details Header Row
+      exportData.push({
+        Col1: "Indent Number",
+        Col2: "Date",
+        Col3: "Raised By",
+        Col4: "Status",
+        Col5: "Dispatch Status",
+      });
+
+      // 3. Details Data Row
+      exportData.push({
+        Col1: intent.intent_number || intent.id,
+        Col2: new Date(intent.date).toLocaleDateString(),
+        Col3: intent.created_by || "Unknown",
+        Col4: status,
+        Col5: dispatchStatus,
+      });
+
+      // 4. Spacing Row
+      exportData.push({});
+
+      // 5. Items Title Row
+      exportData.push({
+        Col1: `ITEMS (${items.length})`,
+      });
+
+      // 6. Items Header Row
+      exportData.push({
+        Col1: "ID",
+        Col2: "Item Name",
+        Col3: "Requested Qty",
+        Col4: "Approved Qty",
+        Col5: "Approved By",
+        Col6: "Dispatch Status",
+      });
+
+      // 7. Items Data Rows
       if (items.length > 0) {
-        items.forEach((item, iidx) => {
-          if (item.is_active === false) return;
+        items.forEach((item, idx) => {
           exportData.push({
-            "Item Name": item.itemName,
-            Quantity: item.quantity,
-            Approved: item.approved || 0,
-            "Total Stock":
-              item.dynamicTotalStock !== undefined
-                ? item.dynamicTotalStock
-                : (item.totalStock ?? 0),
-            "Item Status": normalizeStatus(item.status),
-            "Raised By ": `${intent.created_by || "N/A"} `,
-            "Approved By / Rejected By": ` ${item.approved_by || "Pending"}`,
+            Col1: `#${idx + 1}`,
+            Col2: item.itemName || "—",
+            Col3: item.quantity,
+            Col4:
+              item.status === "Reject" || item.status === "Rejected"
+                ? 0
+                : (item.approved ?? item.quantity),
+            Col5: item.approved_by || "—",
+            Col6: item.is_dispatch ? "Dispatched" : "Not Dispatched",
           });
         });
       } else {
-        exportData.push({ "Item Name": "No items" });
+        exportData.push({
+          Col1: "No items.",
+        });
       }
+
+      // 8. Spacing Rows before next block
+      exportData.push({});
       exportData.push({});
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportData, { skipHeader: false });
-    const range = XLSX.utils.decode_range(ws["!ref"]);
+    const ws = XLSX.utils.json_to_sheet(exportData, { skipHeader: true });
 
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-      for (let C = range.s.c; C <= range.e.c; ++C) {
-        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-        const cell = ws[cellAddress];
-        if (cell) {
-          const columnIndices = [0, 2, 3, 4];
-          const isNumericColumn = columnIndices.includes(C);
-          cell.s = {
-            alignment: {
-              horizontal:
-                R === 0 ? "center" : isNumericColumn ? "center" : "left",
-              vertical: "center",
-            },
-          };
-        }
-      }
-    }
-
+    // Format column widths dynamically
     const colWidths = exportData.reduce((widths, row) => {
       Object.keys(row).forEach((key, i) => {
         const val = row[key] ? row[key].toString() : "";
-        widths[i] = Math.max(widths[i] || key.length, val.length);
+        widths[i] = Math.max(widths[i] || 10, val.length);
       });
       return widths;
     }, []);
     ws["!cols"] = colWidths.map((w) => ({ wch: w + 2 }));
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Traveller Intents");
-    XLSX.writeFile(wb, "travellers_intents.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Traveller Indents");
+    XLSX.writeFile(wb, "travellers_indents.xlsx");
   };
 
   const filteredIntents = intents.filter((intent) => {
-    if (!fromDate && !toDate) return true;
     const intentDate = new Date(intent.date).toISOString().split("T")[0];
     if (fromDate && intentDate < fromDate) return false;
     if (toDate && intentDate > toDate) return false;
+
+    const intentId = String(intent.intent_number || intent.id || "");
+    if (
+      searchIndent.trim() &&
+      !intentId.toLowerCase().includes(searchIndent.toLowerCase().trim())
+    ) {
+      return false;
+    }
+
+    const itemsList = (() => {
+      let r = intent.items;
+      while (typeof r === "string") {
+        try {
+          r = JSON.parse(r);
+        } catch {
+          break;
+        }
+      }
+      return Array.isArray(r) ? r : [];
+    })();
+
+    if (statusFilter) {
+      const status = getIntentStatus(itemsList);
+      if (status !== statusFilter) return false;
+    }
+
+    if (dispatchFilter) {
+      const dispatchStatus = getIntentDispatchStatus(itemsList);
+      if (dispatchStatus !== dispatchFilter) return false;
+    }
+
     return true;
   });
 
@@ -832,7 +1073,7 @@ function TravellersIntentApproval() {
   return (
     <Container>
       <Header>
-        <Title>Traveller Intent Report</Title>
+        <Title>Traveller Indent Report</Title>
       </Header>
       <TopRightButtons>
         <Button bgColor="#662549" bgHover="#662549" onClick={handlePrintTable}>
@@ -843,6 +1084,15 @@ function TravellersIntentApproval() {
         </Button>
       </TopRightButtons>
       <FilterContainer>
+        <FilterGroup style={{ flex: "1.5", minWidth: "200px" }}>
+          <Label>Search Indent Number</Label>
+          <Input
+            type="text"
+            placeholder="Search by Indent Number..."
+            value={searchIndent}
+            onChange={(e) => setSearchIndent(e.target.value)}
+          />
+        </FilterGroup>
         <FilterGroup>
           <Label>From Date</Label>
           <Input
@@ -859,6 +1109,33 @@ function TravellersIntentApproval() {
             onChange={(e) => setToDate(e.target.value)}
           />
         </FilterGroup>
+        <FilterGroup>
+          <Label>Status</Label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ width: "100%" }}
+          >
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Partially Approved">Partially Approved</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </FilterGroup>
+        <FilterGroup>
+          <Label>Dispatch Status</Label>
+          <select
+            value={dispatchFilter}
+            onChange={(e) => setDispatchFilter(e.target.value)}
+            style={{ width: "100%" }}
+          >
+            <option value="">All Dispatch Statuses</option>
+            <option value="Not Dispatched">Not Dispatched</option>
+            <option value="Partially Dispatched">Partially Dispatched</option>
+            <option value="Dispatched">Dispatched</option>
+          </select>
+        </FilterGroup>
         <ButtonGroup>
           <Button onClick={handleClearFilters}>Clear</Button>
         </ButtonGroup>
@@ -870,8 +1147,9 @@ function TravellersIntentApproval() {
             <tr>
               <Th>S.No</Th>
               <Th>Date</Th>
-              <Th>Intent Number</Th>
+              <Th>Indent Number</Th>
               <Th>Status</Th>
+              <Th>Dispatch Status</Th>
               <Th className="no-print">Action</Th>
             </tr>
           </thead>
@@ -879,19 +1157,21 @@ function TravellersIntentApproval() {
             {filteredIntents.length > 0 ? (
               filteredIntents.map((intent, index) => {
                 const intentId = intent.intent_number || intent.id;
-                const status = getIntentStatus(
-                  (() => {
-                    let r = intent.items;
-                    while (typeof r === "string") {
-                      try {
-                        r = JSON.parse(r);
-                      } catch {
-                        break;
-                      }
+                const itemsList = (() => {
+                  let r = intent.items;
+                  while (typeof r === "string") {
+                    try {
+                      r = JSON.parse(r);
+                    } catch {
+                      break;
                     }
-                    return Array.isArray(r) ? r : [];
-                  })(),
-                );
+                  }
+                  return Array.isArray(r) ? r : [];
+                })();
+
+                const status = getIntentStatus(itemsList);
+                const dispatchStatus = getIntentDispatchStatus(itemsList);
+
                 return (
                   <tr key={`${intentId}-${intent.date}`}>
                     <Td>{index + 1}</Td>
@@ -903,6 +1183,13 @@ function TravellersIntentApproval() {
                         className={`status-${status.toLowerCase().replace(" ", "-")}`}
                       >
                         {status}
+                      </StatusText>
+                    </Td>
+                    <Td>
+                      <StatusText
+                        className={`status-${dispatchStatus.toLowerCase().replace(" ", "-")}`}
+                      >
+                        {dispatchStatus}
                       </StatusText>
                     </Td>
                     <Td className="no-print">
@@ -929,7 +1216,7 @@ function TravellersIntentApproval() {
               })
             ) : (
               <tr>
-                <Td colSpan="5" style={{ textAlign: "center" }}>
+                <Td colSpan="6" style={{ textAlign: "center" }}>
                   No data available
                 </Td>
               </tr>
@@ -938,70 +1225,91 @@ function TravellersIntentApproval() {
         </Table>
       </div>
 
-      {expandedIntent && (
-        <Overlay>
-          <PopupContainer style={{ minHeight: "400px", overflow: "auto" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "12px",
-              }}
-            >
-              <h3 style={{ margin: 0, color: "#662549" }}>
-                Items for {expandedIntent}
-              </h3>
-              <CloseButton
-                onClick={() => setExpandedIntent(null)}
-                title="Close"
+      {expandedIntent && (() => {
+        const intent = intents.find((i) => i.intent_number === expandedIntent);
+        if (!intent) return null;
+        const items = Array.isArray(intent.items) ? intent.items : [];
+
+        const dispatchableIndices = items
+          .map((item, idx) => {
+            const normStatus = normalizeStatus(item.status);
+            const isDispatchable =
+              (normStatus === "Approved" || normStatus === "Partially Approved") &&
+              !item.is_dispatch;
+            return isDispatchable ? idx : -1;
+          })
+          .filter((idx) => idx !== -1);
+
+        const allSelected =
+          dispatchableIndices.length > 0 &&
+          dispatchableIndices.every((idx) => selectedDispatchItems.includes(idx));
+
+        return (
+          <Overlay>
+            <PopupContainer style={{ minHeight: "450px", overflow: "auto" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                }}
               >
-                <FaTimes />
-              </CloseButton>
-            </div>
+                <h3 style={{ margin: 0, color: "#662549" }}>
+                  Items for {expandedIntent}
+                </h3>
+                <CloseButton
+                  onClick={() => setExpandedIntent(null)}
+                  title="Close"
+                >
+                  <FaTimes />
+                </CloseButton>
+              </div>
 
-            <SubTable>
-              <thead>
-                <tr>
-                  <SubTh>S.No</SubTh>
-                  <SubTh>Item ID</SubTh>
-                  <SubTh>Item Name</SubTh>
-                  <SubTh>Quantity</SubTh>
-                  <SubTh>Status</SubTh>
-                  <SubTh>Approved</SubTh>
-                  <SubTh>Total Stock</SubTh>
-                  <SubTh>Raised By</SubTh>
-                  <SubTh>Approved By / Rejected By</SubTh>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const intent = intents.find(
-                    (i) => i.intent_number === expandedIntent,
-                  );
-                  if (!intent) return null;
-                  const items = Array.isArray(intent.items) ? intent.items : [];
-
-                  return items.length > 0 ? (
+              <SubTable>
+                <thead>
+                  <tr>
+                    <SubTh>S.No</SubTh>
+                    <SubTh style={{ minWidth: "100px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() => handleSelectAllDispatch(dispatchableIndices)}
+                          style={{ cursor: "pointer" }}
+                        />
+                        <span>Dispatch</span>
+                      </div>
+                    </SubTh>
+                    <SubTh>Item ID</SubTh>
+                    <SubTh>Item Name</SubTh>
+                    <SubTh>Quantity</SubTh>
+                    <SubTh>Status</SubTh>
+                    <SubTh>Approved</SubTh>
+                    <SubTh>Total Stock</SubTh>
+                    <SubTh>Dispatch Status</SubTh>
+                    <SubTh>Raised By</SubTh>
+                    <SubTh>Approved By / Rejected By</SubTh>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length > 0 ? (
                     items.map((item, itemIndex) => {
                       const isEditing =
                         editingRow?.intentId === expandedIntent &&
                         editingRow?.itemIndex === itemIndex;
 
                       const currentStock =
-                        item.totalstock !== undefined // lowercase 's' — this was intentional as a falsy check
+                        item.totalstock !== undefined
                           ? item.dynamicTotalStock
                           : item.totalStock || 0;
 
                       const requestedQty = Number(item.quantity || 0);
                       const normStatus = normalizeStatus(item.status);
 
-                      // Value shown in dropdown must match one of the <option value="...">
-                      // DB now stores full-form ("Approved") → map back to short-form option value
                       const dropdownValue =
                         STATUS_REVERSE[item.status] || item.status || "Pending";
 
-                      // Approved quantity display
                       const approvedDisplay =
                         normStatus === "Partially Approved"
                           ? item.approved
@@ -1009,9 +1317,23 @@ function TravellersIntentApproval() {
                             ? item.quantity
                             : 0;
 
+                      const isDispatchChecked = item.is_dispatch === true || selectedDispatchItems.includes(itemIndex);
+                      const isDispatchDisabled =
+                        item.is_dispatch === true ||
+                        !(normStatus === "Approved" || normStatus === "Partially Approved");
+
                       return (
                         <tr key={item.item_id || itemIndex}>
                           <SubTd>{itemIndex + 1}</SubTd>
+                          <SubTd>
+                            <input
+                              type="checkbox"
+                              checked={isDispatchChecked}
+                              disabled={isDispatchDisabled}
+                              onChange={() => handleToggleDispatchItem(itemIndex)}
+                              style={{ cursor: isDispatchDisabled ? "not-allowed" : "pointer" }}
+                            />
+                          </SubTd>
                           <SubTd>
                             {toRoman(item.item_id || itemIndex + 1)}
                           </SubTd>
@@ -1064,8 +1386,7 @@ function TravellersIntentApproval() {
                                     e.target.value,
                                   )
                                 }
-                                // Disable if already Rejected (full-form or short-form)
-                                disabled={normStatus === "Rejected"}
+                                disabled={normStatus === "Rejected" || item.is_dispatch === true}
                               >
                                 <option value="Pending">Pending</option>
                                 <option
@@ -1121,29 +1442,53 @@ function TravellersIntentApproval() {
                           </SubTd>
 
                           <SubTd>{currentStock}</SubTd>
+                          <SubTd>
+                            <StatusText
+                              className={`status-${item.is_dispatch ? "dispatched" : "not-dispatched"}`}
+                              style={{ padding: "2px 8px", fontSize: "0.72rem" }}
+                            >
+                              {item.is_dispatch ? "Dispatched" : "Not Dispatched"}
+                            </StatusText>
+                          </SubTd>
                           <SubTd>{intent.created_by || "Unknown"}</SubTd>
                           <SubTd>
                             {normStatus !== "Pending"
                               ? item.approved_by || "Pending"
                               : "Pending"}
                           </SubTd>
-                          <SubTd />
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <SubTd colSpan="9" style={{ textAlign: "center" }}>
+                      <SubTd colSpan="11" style={{ textAlign: "center" }}>
                         No items available
                       </SubTd>
                     </tr>
-                  );
-                })()}
-              </tbody>
-            </SubTable>
-          </PopupContainer>
-        </Overlay>
-      )}
+                  )}
+                </tbody>
+              </SubTable>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "12px",
+                  marginTop: "16px",
+                }}
+              >
+                <Button
+                  onClick={handleBatchDispatch}
+                  disabled={selectedDispatchItems.length === 0 || isBatchUpdating}
+                  style={{ background: "linear-gradient(135deg, #662549 0%, #8c3b6a 100%)" }}
+                >
+                  {isBatchUpdating ? "Dispatching..." : "Dispatch Selected"}
+                </Button>
+              </div>
+            </PopupContainer>
+          </Overlay>
+        );
+      })()}
 
       <InputModal
         title="Enter approved quantity"

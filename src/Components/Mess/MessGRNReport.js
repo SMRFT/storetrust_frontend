@@ -1542,7 +1542,7 @@ const formattedPayments = validPayments.map((payment) => {
     if (!showModal || !selectedRecord) return null;
     return (
       <ModalOverlay onClick={onClose}>
-        <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalContent onClick={(e) => e.stopPropagation()} style={{ maxWidth: "800px" }}>
           <ModalScrollContainer>
             <ModalHeader>
               <ModalTitle>GRN Details - {selectedRecord.grn_number || "N/A"}</ModalTitle>

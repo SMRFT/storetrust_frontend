@@ -1060,7 +1060,7 @@ const TravellersIN = () => {
         return "";
       }
     };
-    const safeItems = Array.isArray(items)
+    const safeItems = (Array.isArray(items)
       ? items
       : (() => {
           try {
@@ -1068,7 +1068,8 @@ const TravellersIN = () => {
           } catch {
             return [];
           }
-        })();
+        })()
+    ).map(({ itemName, ...rest }) => rest);
 
     const payload = {
       ...formData,

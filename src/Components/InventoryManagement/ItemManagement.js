@@ -231,6 +231,7 @@ const ItemManagement = () => {
   const [historyData, setHistoryData] = useState([]);
   const [selectedItemForHistory, setSelectedItemForHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
 
   const StoreTrustBaseUrl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
@@ -311,13 +312,18 @@ const ItemManagement = () => {
     setSelectedItemForHistory(item);
     setShowHistoryModal(true);
     setHistoryLoading(true);
+    setHistoryError("");
     try {
       const url = `${StoreTrustBaseUrl}travellers-in/previous-purchases/?hsn=${encodeURIComponent(hsn)}&item_id=${encodeURIComponent(item_id)}`;
       const r = await apiRequest(url, "GET");
-      setHistoryData(
-        r.success && r.data?.status === "success" ? r.data.data || [] : [],
-      );
-    } catch {
+      if (r.success && r.data?.status === "success") {
+        setHistoryData(r.data.data || []);
+      } else {
+        setHistoryError(r.error || "Failed to fetch purchase history");
+        setHistoryData([]);
+      }
+    } catch (err) {
+      setHistoryError(err.message || "An unexpected error occurred");
       setHistoryData([]);
     } finally {
       setHistoryLoading(false);
@@ -563,7 +569,7 @@ const ItemManagement = () => {
               const its = JSON.parse(h.items);
               const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
               if (m) it = m;
-            } catch {}
+            } catch { }
             if (h.matched_item) it = h.matched_item;
             return parseFloat(it?.unitPrice || 0);
           });
@@ -571,17 +577,17 @@ const ItemManagement = () => {
             prices.length === 0
               ? { min: 0, max: 0, avg: 0 }
               : {
-                  min: Math.min(...prices),
-                  max: Math.max(...prices),
-                  avg: prices.reduce((s, p) => s + p, 0) / prices.length,
-                };
+                min: Math.min(...prices),
+                max: Math.max(...prices),
+                avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+              };
           const totalStock = historyData.reduce((t, h) => {
             let it = h;
             try {
               const its = JSON.parse(h.items);
               const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
               if (m) it = m;
-            } catch {}
+            } catch { }
             if (h.matched_item) it = h.matched_item;
             return t + parseInt(it?.totalstock || 0);
           }, 0);
@@ -627,6 +633,17 @@ const ItemManagement = () => {
                     >
                       Loading history…
                     </div>
+                  ) : historyError ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: "#dc2626",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {historyError}
+                    </div>
                   ) : historyData.length === 0 ? (
                     <div
                       style={{
@@ -668,7 +685,7 @@ const ItemManagement = () => {
                               (x) => x.hsn === selectedItemForHistory.hsn,
                             );
                             if (m) it = m;
-                          } catch {}
+                          } catch { }
                           if (hi.matched_item) it = hi.matched_item;
                           const unitPrice = parseFloat(it?.unitPrice || 0);
                           const isHigh =

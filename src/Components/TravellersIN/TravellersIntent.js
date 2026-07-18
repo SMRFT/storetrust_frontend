@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import apiRequest from "../apiRequest";
+import { toast } from "react-toastify";
 import {
   FaPlus,
   FaSave,
@@ -49,9 +50,22 @@ const FiltersSection = styled.div`
 
 const FiltersGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+  grid-template-columns: 1fr 1fr auto;
   gap: 20px;
   align-items: flex-end;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+`;
+
+const StyledFormRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  width: 100%;
+  margin-bottom: 20px;
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
@@ -308,7 +322,7 @@ function TravellersIntent() {
         setSavedIntents(parsedData);
       }
     } catch {
-      alert("Something went wrong while fetching saved data.");
+      toast.error("Something went wrong while fetching saved data.");
     }
   }, [StoreTrustbaseurl, filters.from_date, filters.to_date]);
 
@@ -319,7 +333,7 @@ function TravellersIntent() {
   // ── Add item to local list ───────────────────────────────────────────────
   const handleAddToList = () => {
     if (!itemName || !quantity) {
-      alert("Please enter item name and quantity");
+      toast.warn("Please enter item name and quantity");
       return;
     }
     // Look up item_id from availableItems by itemName
@@ -347,7 +361,7 @@ function TravellersIntent() {
   // ── Save all items to backend ────────────────────────────────────────────
   const handleSaveAll = async () => {
     if (items.length === 0) {
-      alert("No items to save.");
+      toast.warn("No items to save.");
       return;
     }
     try {
@@ -367,7 +381,7 @@ function TravellersIntent() {
       if (!response.success)
         throw new Error(response.error || "Failed to save items");
 
-      alert("Successfully saved");
+      toast.success("Successfully saved");
       setItems([]);
       setHsnNumber("");
       fetchSavedData();
@@ -387,7 +401,7 @@ function TravellersIntent() {
       ); // ← pass currentUser
     } catch (error) {
       console.error(error);
-      alert("Something went wrong!");
+      toast.error("Something went wrong!");
     }
   };
 
@@ -411,17 +425,17 @@ function TravellersIntent() {
         },
       );
       if (response.success) {
-        alert("Item soft-deleted successfully");
+        toast.success("Item soft-deleted successfully");
         await fetchSavedData();
-      } else alert("Failed to delete item.");
+      } else toast.error("Failed to delete item.");
     } catch {
-      alert("Error deleting item.");
+      toast.error("Error deleting item.");
     }
   };
 
   const handleDeleteAllByIntent = async (intentNumber, intentDate) => {
     if (!intentNumber || !intentDate) {
-      alert("Missing intent number or date.");
+      toast.error("Missing intent number or date.");
       return;
     }
     if (!window.confirm(`Delete all items for intent ${intentNumber}?`)) return;
@@ -431,7 +445,7 @@ function TravellersIntent() {
         "DELETE",
       );
       if (response.success) {
-        alert("All items deleted successfully");
+        toast.success("All items deleted successfully");
         setExpandedIntents((prev) => {
           const s = new Set(prev);
           s.delete(intentNumber);
@@ -443,10 +457,10 @@ function TravellersIntent() {
           ),
         );
       } else {
-        alert(`Failed: ${response.error || "Unknown error"}`);
+        toast.error(`Failed: ${response.error || "Unknown error"}`);
       }
     } catch {
-      alert("Error deleting all items.");
+      toast.error("Error deleting all items.");
     }
   };
 
@@ -454,11 +468,11 @@ function TravellersIntent() {
     const intentId = intent.intent_number || intent.id;
     const itemId = item.item_id || item.id;
     if (!intentId) {
-      alert("Indent identifier not found.");
+      toast.error("Indent identifier not found.");
       return;
     }
     if (!itemId) {
-      alert("Item identifier not found.");
+      toast.error("Item identifier not found.");
       return;
     }
     setEditingIntentNumber(intentId);
@@ -478,11 +492,11 @@ function TravellersIntent() {
 
   const handleSaveEditedItem = async () => {
     if (!editedQuantity) {
-      alert("Please enter a valid quantity.");
+      toast.warn("Please enter a valid quantity.");
       return;
     }
     if (!editingIntentNumber || !editingDate || !editingItemId) {
-      alert("Missing identifiers.");
+      toast.error("Missing identifiers.");
       return;
     }
     try {
@@ -504,12 +518,12 @@ function TravellersIntent() {
         },
       );
       if (response.success) {
-        alert("Item updated successfully.");
+        toast.success("Item updated successfully.");
         handleCancelEdit();
         await fetchSavedData();
-      } else alert(`Failed to update: ${response.error || "Unknown error"}`);
+      } else toast.error(`Failed to update: ${response.error || "Unknown error"}`);
     } catch {
-      alert("Error updating item.");
+      toast.error("Error updating item.");
     }
   };
 
@@ -534,7 +548,7 @@ function TravellersIntent() {
       </Header>
 
       {/* ── Form Row ── */}
-      <FormRow>
+      <StyledFormRow>
         {/* Date */}
         <FormGroup style={{ flex: 1 }}>
           <Label>Date</Label>
@@ -665,7 +679,7 @@ function TravellersIntent() {
             placeholder="Enter quantity"
           />
         </FormGroup>
-      </FormRow>
+      </StyledFormRow>
 
       <AddButtonContainer>
         <AddButton onClick={handleAddToList}>

@@ -10,6 +10,7 @@ import {
   FaFileExcel,
 } from "react-icons/fa";
 import apiRequest from "../apiRequest";
+import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import {
   ModalOverlay,
@@ -195,17 +196,17 @@ function InputModal({
   const handleSave = () => {
     const qty = Number(inputValue);
     if (isNaN(qty) || qty <= 0) {
-      alert("Please enter a quantity greater than 0.");
+      toast.warn("Please enter a quantity greater than 0.");
       return;
     }
     if (qty >= requestedQuantity) {
-      alert(
+      toast.warn(
         `Partially approved quantity must be less than requested quantity (${requestedQuantity}).`,
       );
       return;
     }
     if (qty > availableStock) {
-      alert(`Quantity cannot exceed available stock (${availableStock}).`);
+      toast.warn(`Quantity cannot exceed available stock (${availableStock}).`);
       return;
     }
     onSave(qty);
@@ -377,7 +378,7 @@ function TravellersIntentApproval() {
       setIntents(recalculatedIntents);
     } catch (error) {
       console.error("Error fetching stock data:", error);
-      alert("Failed to fetch latest stock data. Please try again.");
+      toast.error("Failed to fetch latest stock data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -528,7 +529,7 @@ function TravellersIntentApproval() {
 
     if (newStatusNorm === "Approved") {
       if (freshStock < requestedQuantity) {
-        alert(`Cannot approve. Available stock: ${freshStock}`);
+        toast.error(`Cannot approve. Available stock: ${freshStock}`);
         return;
       }
       approvedQuantity = requestedQuantity;
@@ -625,7 +626,7 @@ function TravellersIntentApproval() {
       });
     } catch (err) {
       console.error("Failed to update items in the database:", err);
-      alert("Failed to update item. Please try again.");
+      toast.error("Failed to update item. Please try again.");
     }
   };
 
@@ -726,7 +727,7 @@ function TravellersIntentApproval() {
         throw new Error(response.error || "Failed to update dispatch status.");
       }
 
-      alert("Items successfully marked as dispatched!");
+      toast.success("Items successfully marked as dispatched!");
       setSelectedDispatchItems([]);
       await fetchData();
 
@@ -750,7 +751,7 @@ function TravellersIntentApproval() {
 
     } catch (err) {
       console.error("Failed to batch update dispatch:", err);
-      alert(`Error updating dispatch: ${err.message}`);
+      toast.error(`Error updating dispatch: ${err.message}`);
     } finally {
       setIsBatchUpdating(false);
     }

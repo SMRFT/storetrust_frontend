@@ -364,7 +364,7 @@ function TravellersIntentApproval() {
       const updatedItems = await Promise.all(
         items.map(async (item) => {
           const hsn = item.hsn || "";
-          const freshStock = await getTotalStock(item.item_id, hsn);
+          const freshStock = await getTotalStock(item.item_id, hsn, selectedOutlet?.outlet_code || intent?.outlet_code || "");
           return {
             ...item,
             hsn,
@@ -519,8 +519,8 @@ function TravellersIntentApproval() {
       normStatus === "Approved"
         ? requestedQuantity
         : normStatus === "Partially Approved"
-        ? Number(item.approved || 0)
-        : 0;
+          ? Number(item.approved || 0)
+          : 0;
 
     const effectiveAvailableStock = freshStock + prevApproved;
 
@@ -623,7 +623,7 @@ function TravellersIntentApproval() {
             (Array.isArray(intent.items) ? intent.items : []).map(
               async (item) => {
                 const hsn = item.hsn || "";
-                const freshStock = await getTotalStock(item.item_id, hsn);
+                const freshStock = await getTotalStock(item.item_id, hsn, selectedOutlet?.outlet_code || intent?.outlet_code || "");
                 return {
                   ...item,
                   hsn,
@@ -666,7 +666,7 @@ function TravellersIntentApproval() {
       const item = items[modalData.itemIndex];
       if (item) {
         const hsn = item.hsn || "";
-        const freshStock = await getTotalStock(item.item_id, hsn);
+        const freshStock = await getTotalStock(item.item_id, hsn, selectedOutlet?.outlet_code || intent?.outlet_code || "");
         setModalData((prev) => ({
           ...prev,
           availableStock: freshStock,
@@ -1421,8 +1421,8 @@ function TravellersIntentApproval() {
                                   disabled={
                                     Number(item.quantity) <= 1 ||
                                     (normStatus !== "Approved" &&
-                                     normStatus !== "Partially Approved" &&
-                                     currentStock <= 0)
+                                      normStatus !== "Partially Approved" &&
+                                      currentStock <= 0)
                                   }
                                 >
                                   Partially Approve

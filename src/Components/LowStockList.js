@@ -18,6 +18,8 @@ import {
 } from "./StyledComponents";
 import styled from "styled-components";
 
+import { useOutlet } from "./OutletContext";
+
 // ─── Page-specific styled components ─────────────────────────────────────────
 
 const PageHeader = styled.div`
@@ -132,13 +134,15 @@ const LowStockList = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { selectedOutlet } = useOutlet();
 
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
   const fetchLowStockNotifications = async () => {
     try {
+      const outletCode = selectedOutlet?.outlet_code || "";
       const response = await apiRequest(
-        `${StoreTrustbaseurl}inventory/check-stock/`,
+        `${StoreTrustbaseurl}inventory/check-stock/?outlet_code=${encodeURIComponent(outletCode)}`,
         "GET",
       );
       if (response.success) {
@@ -158,7 +162,7 @@ const LowStockList = () => {
 
   useEffect(() => {
     fetchLowStockNotifications();
-  }, []);
+  }, [selectedOutlet?.outlet_code]);
 
   // ── Derived counts ─────────────────────────────────────────────────────────
   const criticalCount = notifications.filter(
@@ -177,8 +181,7 @@ const LowStockList = () => {
           <td>${item.hsn || "—"}</td>
           <td style="text-align:right">${item.total_quantity ?? 0}</td>
           <td style="text-align:right">${item.approved_quantity ?? 0}</td>
-          <td style="text-align:right;font-weight:700;color:${
-            item.available_stock === 0 ? "#dc2626" : "#92400e"
+          <td style="text-align:right;font-weight:700;color:${item.available_stock === 0 ? "#dc2626" : "#92400e"
           }">
             ${item.available_stock ?? 0}
           </td>
@@ -220,9 +223,8 @@ const LowStockList = () => {
           </style>
         </head>
         <body>
-          <h2>SHANMUGA HOSPITAL LIMITED</h2>
-          <p class="sub">51/24, Saradha College Road, Salem - 636007</p>
-          <p class="sub">Low Stock Report — Generated on: ${new Date().toLocaleString("en-IN")}</p>
+          <h2>${selectedOutlet?.outlet_name || "Outlet"} Low Stock Report</h2>
+          <p class="sub">Generated Date & Time: ${new Date().toLocaleString("en-IN")}</p>
           <div class="summary">
             <div class="summary-box">
               <div class="val">${notifications.length}</div>

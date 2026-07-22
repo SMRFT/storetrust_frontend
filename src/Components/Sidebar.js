@@ -14,7 +14,6 @@ import {
   SubLink,
   Logo,
   MainContent,
-  IconWrapper,
   SignOutWrapper,
 } from "./StyledComponents";
 
@@ -60,10 +59,13 @@ const ROLE_DEFAULTS = {
   Employee: "/TravellersIntent",
 };
 
-const TRAVELLERS_ROUTES = [
-  "/GRNGeneration",
+const INDENT_ROUTES = [
   "/TravellersIntent",
   "/TravellersIntentApproval",
+];
+
+const GRN_ROUTES = [
+  "/GRNGeneration",
   "/TravellersINGRNReport",
 ];
 
@@ -77,22 +79,37 @@ const INVENTORY_ROUTES = [
 // Sidebar Component
 // ─────────────────────────────────────────────────────────────────────────────
 const Sidebar = ({ children }) => {
-  const [isTravellersOpen, setIsTravellersOpen] = useState(false);
+  const [isIndentOpen, setIsIndentOpen] = useState(false);
+  const [isGRNOpen, setIsGRNOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [allowedActions, setAllowedActions] = useState([]);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
 
   // ── Derive active states from current path ──────────────────────────────
-  const isTravellersActive = TRAVELLERS_ROUTES.includes(location.pathname);
+  const isIndentActive = INDENT_ROUTES.includes(location.pathname);
+  const isGRNActive = GRN_ROUTES.includes(location.pathname);
   const isInventoryActive = INVENTORY_ROUTES.includes(location.pathname);
 
   // ── Role init + default redirect ───────────────────────────────────────
   useEffect(() => {
     const role = localStorage.getItem("role") || "Employee";
     setUserRole(role);
+
+    try {
+      const userPayloadStr = localStorage.getItem("user_payload");
+      if (userPayloadStr) {
+        const payload = JSON.parse(userPayloadStr);
+        const actions = payload["allowed-actions"] || [];
+        const outletsArr = payload["allowed-outlets"] || [];
+        setAllowedActions([...actions, ...outletsArr]);
+      }
+    } catch (e) {
+      setAllowedActions([]);
+    }
 
     if (location.pathname === "/") {
       navigate(ROLE_DEFAULTS[role] ?? "/TravellersIntent", { replace: true });
@@ -117,24 +134,49 @@ const Sidebar = ({ children }) => {
 
   // ── Auto-open dropdowns if a child route is active ─────────────────────
   useEffect(() => {
-    if (isTravellersActive) setIsTravellersOpen(true);
+    if (isIndentActive) setIsIndentOpen(true);
+    if (isGRNActive) setIsGRNOpen(true);
     if (isInventoryActive) setIsInventoryOpen(true);
-  }, [isTravellersActive, isInventoryActive]);
+  }, [isIndentActive, isGRNActive, isInventoryActive]);
 
-  // ── Menu renderers per role ────────────────────────────────────────────
-  const TravellersDropdown = ({ links }) => (
+  // ── Menu renderers ─────────────────────────────────────────────────────
+  const IndentDropdown = ({ links }) => (
     <SidebarItem>
       <DropdownButton
-        onClick={() => setIsTravellersOpen((v) => !v)}
-        active={isTravellersActive}
+        onClick={() => setIsIndentOpen((v) => !v)}
+        active={isIndentActive}
       >
         <FaClipboardList />
-        <span style={{ flex: 1 }}>Travellers</span>
-        <DropdownIcon open={isTravellersOpen}>
+        <span style={{ flex: 1 }}>Indent Management</span>
+        <DropdownIcon open={isIndentOpen}>
           <FaCaretDown />
         </DropdownIcon>
       </DropdownButton>
-      {isTravellersOpen && (
+      {isIndentOpen && (
+        <SubMenu>
+          {links.map(({ to, label }) => (
+            <SubLink key={to} to={to}>
+              {label}
+            </SubLink>
+          ))}
+        </SubMenu>
+      )}
+    </SidebarItem>
+  );
+
+  const GRNDropdown = ({ links }) => (
+    <SidebarItem>
+      <DropdownButton
+        onClick={() => setIsGRNOpen((v) => !v)}
+        active={isGRNActive}
+      >
+        <FaClipboardList />
+        <span style={{ flex: 1 }}>GRN Management</span>
+        <DropdownIcon open={isGRNOpen}>
+          <FaCaretDown />
+        </DropdownIcon>
+      </DropdownButton>
+      {isGRNOpen && (
         <SubMenu>
           {links.map(({ to, label }) => (
             <SubLink key={to} to={to}>
@@ -173,13 +215,17 @@ const Sidebar = ({ children }) => {
       case "Admin":
         return (
           <>
-            <TravellersDropdown
+            <IndentDropdown
               links={[
-                { to: "/TravellersIntent", label: "Travellers Indent" },
+                { to: "/TravellersIntent", label: "Indent" },
                 {
                   to: "/TravellersIntentApproval",
-                  label: "Travellers Indent Approval",
+                  label: "Indent Approval",
                 },
+              ]}
+            />
+            <GRNDropdown
+              links={[
                 { to: "/GRNGeneration", label: "GRN Generation" },
                 { to: "/TravellersINGRNReport", label: "GRN Report" },
               ]}
@@ -191,13 +237,17 @@ const Sidebar = ({ children }) => {
       case "Store Manager":
         return (
           <>
-            <TravellersDropdown
+            <IndentDropdown
               links={[
-                { to: "/GRNGeneration", label: "GRN Generation" },
                 {
                   to: "/TravellersIntentApproval",
-                  label: "Travellers Indent Approval",
+                  label: "Indent Approval",
                 },
+              ]}
+            />
+            <GRNDropdown
+              links={[
+                { to: "/GRNGeneration", label: "GRN Generation" },
                 { to: "/TravellersINGRNReport", label: "GRN Report" },
               ]}
             />
@@ -207,35 +257,28 @@ const Sidebar = ({ children }) => {
 
       case "Accounts":
         return (
-          <SidebarItem>
-            <DropdownButton
-              onClick={() => setIsTravellersOpen((v) => !v)}
-              active={isTravellersActive}
-            >
-              <FaClipboardList />
-              <span style={{ flex: 1 }}>GRN Report</span>
-              <DropdownIcon open={isTravellersOpen}>
-                <FaCaretDown />
-              </DropdownIcon>
-            </DropdownButton>
-            {isTravellersOpen && (
-              <SubMenu>
-                <SubLink to="/TravellersINGRNReport">GRN Report</SubLink>
-              </SubMenu>
-            )}
-          </SidebarItem>
+          <GRNDropdown
+            links={[{ to: "/TravellersINGRNReport", label: "GRN Report" }]}
+          />
         );
 
       case "Employee":
-      default:
+      default: {
+        const hasPermission =
+          userRole === "Employee" ||
+          allowedActions.length === 0 ||
+          allowedActions.some(
+            (a) => typeof a === "string" && (a.startsWith("OLET") || a.includes("EMP") || a.includes("INTENT") || a.includes("STR"))
+          );
+
+        if (!hasPermission) return null;
+
         return (
-          <SidebarItem>
-            <SidebarNavLink to="/TravellersIntent">
-              <FaClipboardList />
-              Travellers Indent
-            </SidebarNavLink>
-          </SidebarItem>
+          <IndentDropdown
+            links={[{ to: "/TravellersIntent", label: "Indent" }]}
+          />
         );
+      }
     }
   };
 

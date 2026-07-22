@@ -16,6 +16,8 @@ import {
 } from "../StyledComponents";
 import styled from "styled-components";
 
+import { useOutlet } from "../OutletContext";
+
 // ─── Page-specific styles ─────────────────────────────────────────────────────
 
 const PageHeader = styled.div`
@@ -218,10 +220,9 @@ const CloseBtn = styled.button`
   }
 `;
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 const ItemManagement = () => {
   const navigate = useNavigate();
+  const { selectedOutlet } = useOutlet();
   const [items, setItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -237,10 +238,17 @@ const ItemManagement = () => {
 
   const fetchItems = async () => {
     try {
-      const res = await apiRequest(`${StoreTrustBaseUrl}get_items/`, "GET");
-      if (res.status === 200 && res.data.status === "success") {
-        setItems(res.data.data);
-        setFilteredItems(res.data.data);
+      const outletCode = selectedOutlet?.outlet_code || "";
+      const res = await apiRequest(`${StoreTrustBaseUrl}get_items/?outlet_code=${encodeURIComponent(outletCode)}`, "GET");
+      if (res.success) {
+        const itemList = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data || [];
+        const sortedList = [...itemList].sort((a, b) =>
+          (a.itemName || "").localeCompare(b.itemName || "", undefined, { sensitivity: "base" })
+        );
+        setItems(sortedList);
+        setFilteredItems(sortedList);
       }
     } catch (err) {
       console.error("Fetch items error", err);
@@ -249,23 +257,26 @@ const ItemManagement = () => {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [selectedOutlet?.outlet_code]);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredItems(items);
-    } else {
+    let list = items;
+    if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
-      setFilteredItems(
-        items.filter((item) => item.itemName?.toLowerCase().includes(q)),
-      );
+      list = items.filter((item) => item.itemName?.toLowerCase().includes(q));
     }
+    const sorted = [...list].sort((a, b) =>
+      (a.itemName || "").localeCompare(b.itemName || "", undefined, { sensitivity: "base" })
+    );
+    setFilteredItems(sorted);
   }, [searchQuery, items]);
 
   const calculateStock = (item) =>
-    (item.total_quantity || 0) +
-    (item.openingStock || 0) -
-    (item.approved_quantity || 0);
+    item.available_stock !== undefined
+      ? item.available_stock
+      : (item.total_quantity || 0) +
+        (item.openingStock || 0) -
+        (item.approved_quantity || 0);
 
   const handleDelete = async (item) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
@@ -287,10 +298,11 @@ const ItemManagement = () => {
 
   const handleSave = async () => {
     try {
+      const outletCode = selectedOutlet?.outlet_code || "";
       await apiRequest(
         `${StoreTrustBaseUrl}update_item/${form.item_id}/`,
         "PATCH",
-        { ...form, openingStock: parseInt(form.openingStock || 0, 10) },
+        { ...form, openingStock: parseInt(form.openingStock || 0, 10), outlet_code: outletCode },
       );
       setEditingItem(null);
       setForm({});

@@ -147,9 +147,12 @@ const VendorManagement = () => {
   const fetchVendors = async () => {
     try {
       const res = await apiRequest(`${StoreTrustBaseUrl}get_vendors/`, "GET");
-      if (res.status === 200 && res.data.status === "success") {
-        setVendors(res.data.data);
-        setFilteredVendors(res.data.data);
+      if (res.success) {
+        const vendorList = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data || [];
+        setVendors(vendorList);
+        setFilteredVendors(vendorList);
       }
     } catch (err) {
       console.error("Error fetching vendors", err);

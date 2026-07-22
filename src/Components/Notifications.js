@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react'; 
-import { FaBell, FaTimes } from 'react-icons/fa'; 
-import styled, { keyframes, css } from 'styled-components'; 
-import { toast } from 'react-toastify'; 
-import apiRequest from './apiRequest'; 
+import React, { useState, useEffect } from 'react';
+import { FaBell, FaTimes } from 'react-icons/fa';
+import styled, { keyframes, css } from 'styled-components';
+import { toast } from 'react-toastify';
+import apiRequest from './apiRequest';
+import { useOutlet } from './OutletContext';
 
 // Theme colors
-const primaryColor = "#662549"; 
-const backgroundColor = "#fcefee"; 
-const textColor = "#2e1a23"; 
-const accentColor = "#b35478"; 
+const primaryColor = "#662549";
+const backgroundColor = "#fcefee";
+const textColor = "#2e1a23";
+const accentColor = "#b35478";
 
 // Keyframe animations
 const ringBell = keyframes`
@@ -61,12 +62,11 @@ const slideIn = keyframes`
 
 // Styled components
 const NotificationsWrapper = styled.div`
-  position: fixed; 
-  top: 20px; 
-  right: 20px; 
-  z-index: 1000; 
-`; 
- 
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
 const BellContainer = styled.div`
   position: relative;
   display: inline-block;
@@ -74,8 +74,8 @@ const BellContainer = styled.div`
 
 const BellIcon = styled(FaBell)` 
   font-size: ${props => props.$hasNotifications ? '32px' : '28px'}; 
-  background: ${props => props.$hasNotifications ? 
-    `linear-gradient(45deg, ${primaryColor}, ${accentColor}, #ff6b35, #ffd23f)` : 
+  background: ${props => props.$hasNotifications ?
+    `linear-gradient(45deg, ${primaryColor}, ${accentColor}, #ff6b35, #ffd23f)` :
     `linear-gradient(45deg, ${primaryColor}, ${accentColor})`};
   background-size: 300% 300%;
   background-clip: text;
@@ -103,8 +103,8 @@ const BellIcon = styled(FaBell)`
   &:active {
     transform: scale(0.9);
   }
-`; 
- 
+`;
+
 const NotificationBadge = styled.span` 
   position: absolute; 
   top: -10px; 
@@ -122,8 +122,8 @@ const NotificationBadge = styled.span`
   text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(5px);
-`; 
- 
+`;
+
 const Dropdown = styled.div` 
   position: absolute; 
   top: 45px; 
@@ -153,8 +153,8 @@ const Dropdown = styled.div`
     border-radius: 14px;
     z-index: -1;
   }
-`; 
- 
+`;
+
 const DropdownHeader = styled.div` 
   padding: 15px 45px 15px 20px; 
   background: linear-gradient(135deg, ${primaryColor}, ${accentColor});
@@ -170,7 +170,7 @@ const DropdownHeader = styled.div`
   border-radius: 10px 10px 0 0;
   box-shadow: 0 4px 16px rgba(102, 37, 73, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-`; 
+`;
 
 const CloseButton = styled.button`
   position: absolute;
@@ -204,13 +204,13 @@ const CloseButton = styled.button`
 const CloseIcon = styled(FaTimes)`
   font-size: 14px;
 `;
- 
+
 const List = styled.ul` 
   list-style-type: none; 
   padding: 0; 
   margin: 0; 
-`; 
- 
+`;
+
 const ListItem = styled.li` 
   background: linear-gradient(135deg, ${backgroundColor}, rgba(255, 255, 255, 0.9));
   background-size: 300% 300%;
@@ -246,8 +246,8 @@ const ListItem = styled.li`
     box-shadow: 0 8px 24px rgba(179, 84, 120, 0.4);
     border-color: rgba(179, 84, 120, 0.3);
   }
-`; 
- 
+`;
+
 const NoNotifications = styled.p` 
   padding: 25px; 
   margin: 10px; 
@@ -261,7 +261,7 @@ const NoNotifications = styled.p`
   border-radius: 8px;
   border: 2px solid rgba(179, 84, 120, 0.2);
   backdrop-filter: blur(5px);
-`; 
+`;
 
 const LoadingWrapper = styled.div`
   color: ${textColor};
@@ -273,83 +273,89 @@ const LoadingWrapper = styled.div`
   backdrop-filter: blur(10px);
   border: 1px solid rgba(179, 84, 120, 0.3);
 `;
- 
-const Notifications = () => { 
-  const [notifications, setNotifications] = useState([]); 
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
-  const [loading, setLoading] = useState(true); 
-  const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL; 
- 
-  const fetchLowStockNotifications = async () => { 
-    try { 
-      const response = await apiRequest(`${StoreTrustbaseurl}inventory/check-stock/`, 'GET'); 
-      if (response.success) { 
-        setNotifications(response.data); 
-      } else { 
-        toast.error(response.error || 'Failed to fetch notifications'); 
-      } 
-    } catch (error) { 
-      toast.error('Network error fetching notifications'); 
-      console.error('Error fetching low stock notifications:', error); 
-    } finally { 
-      setLoading(false); 
-    } 
-  }; 
- 
-  useEffect(() => { 
-    fetchLowStockNotifications(); 
+
+const Notifications = () => {
+  const [notifications, setNotifications] = useState([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { selectedOutlet } = useOutlet();
+  const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
+
+  const fetchLowStockNotifications = async () => {
+    try {
+      const outletCode = selectedOutlet?.outlet_code || "";
+      const response = await apiRequest(`${StoreTrustbaseurl}inventory/check-stock/?outlet_code=${encodeURIComponent(outletCode)}`, 'GET');
+      if (response.success) {
+        setNotifications(response.data);
+      } else {
+        toast.error(response.error || 'Failed to fetch notifications');
+      }
+    } catch (error) {
+      toast.error('Network error fetching notifications');
+      console.error('Error fetching low stock notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLowStockNotifications();
     const interval = setInterval(fetchLowStockNotifications, 300000); // every 5 mins 
-    return () => clearInterval(interval); 
-  }, []); 
- 
-  const toggleDropdown = () => { 
-    setIsDropdownOpen(!isDropdownOpen); 
-  }; 
+    return () => clearInterval(interval);
+  }, [selectedOutlet?.outlet_code]);
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
 
   const closeDropdown = () => {
     setIsDropdownOpen(false);
   };
- 
-  if (loading) return <LoadingWrapper>Loading notifications...</LoadingWrapper>; 
- 
-  return ( 
-    <NotificationsWrapper> 
-      <BellContainer> 
-        <BellIcon 
-          onClick={toggleDropdown} 
-          data-testid="bell-icon" 
-          aria-label="Notifications"
-          $hasNotifications={notifications.length > 0}
-        /> 
-        {notifications.length > 0 && ( 
-          <NotificationBadge>{notifications.length}</NotificationBadge> 
-        )} 
-      </BellContainer> 
-      <Dropdown $isOpen={isDropdownOpen}> 
-        <DropdownHeader>
-          <span>Low Stock Notifications</span>
-          <CloseButton 
-            onClick={closeDropdown}
-            aria-label="Close notifications"
-            data-testid="close-button"
-          >
-            <CloseIcon />
-          </CloseButton>
-        </DropdownHeader> 
-        {notifications.length > 0 ? ( 
-          <List> 
-            {notifications.map((notification, index) => ( 
-              <ListItem key={index}> 
-                {notification.message} 
-              </ListItem> 
-            ))} 
-          </List> 
-        ) : ( 
-          <NoNotifications>No low stock items at the moment.</NoNotifications> 
-        )} 
-      </Dropdown> 
-    </NotificationsWrapper> 
-  ); 
-}; 
- 
+
+  return (
+    <NotificationsWrapper>
+      {loading ? (
+        <LoadingWrapper>Loading notifications...</LoadingWrapper>
+      ) : (
+        <>
+          <BellContainer>
+            <BellIcon
+              onClick={toggleDropdown}
+              data-testid="bell-icon"
+              aria-label="Notifications"
+              $hasNotifications={notifications.length > 0}
+            />
+            {notifications.length > 0 && (
+              <NotificationBadge>{notifications.length}</NotificationBadge>
+            )}
+          </BellContainer>
+          <Dropdown $isOpen={isDropdownOpen}>
+            <DropdownHeader>
+              <span>Low Stock Notifications</span>
+              <CloseButton
+                onClick={closeDropdown}
+                aria-label="Close notifications"
+                data-testid="close-button"
+              >
+                <CloseIcon />
+              </CloseButton>
+            </DropdownHeader>
+            {notifications.length > 0 ? (
+              <List>
+                {notifications.map((notification, index) => (
+                  <ListItem key={index}>
+                    {notification.message}
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <NoNotifications>No low stock items at the moment.</NoNotifications>
+            )}
+          </Dropdown>
+        </>
+      )}
+    </NotificationsWrapper>
+  );
+};
+
 export default Notifications;

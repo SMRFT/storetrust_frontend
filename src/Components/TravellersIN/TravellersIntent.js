@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import apiRequest from "../apiRequest";
 import { toast } from "react-toastify";
+import { useOutlet } from "../OutletContext";
 import {
   FaPlus,
   FaSave,
@@ -146,6 +147,7 @@ const printTableRef = (
   fromDate = "",
   toDate = "",
   createdBy = "Unknown User",
+  outletName = "Outlet",
 ) => {
   const fmt = (d) =>
     d
@@ -157,7 +159,7 @@ const printTableRef = (
       : "";
 
   const tableHtml = `
-    <div style="text-align:center;font-weight:bold;font-size:18px;">Travellers Inn Indent Request</div>
+    <div style="text-align:center;font-weight:bold;font-size:18px;">${outletName} Indent Request</div>
     ${fromDate || toDate ? `<div style="margin:10px 0;font-size:14px;">Date: ${fmt(fromDate)}${fromDate && toDate ? " – " : ""}${fmt(toDate)}</div>` : ""}
     <table style="width:100%;border-collapse:collapse;font-family:'Segoe UI',sans-serif;margin-top:20px;">
       <thead>
@@ -210,6 +212,7 @@ const printTableRef = (
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TravellersIntent() {
+  const { selectedOutlet } = useOutlet();
   const [date, setDate] = useState(
     () => new Date().toISOString().split("T")[0],
   );
@@ -271,7 +274,8 @@ function TravellersIntent() {
       filters.from_date,
       filters.to_date,
       intent.created_by,
-    ); // ← pass created_by
+      selectedOutlet?.outlet_name || "Outlet",
+    ); // ← pass created_by & outletName
   };
 
   // ── Fetch available items for dropdown ───────────────────────────────────
@@ -302,11 +306,10 @@ function TravellersIntent() {
 
   const fetchSavedData = useCallback(async () => {
     try {
-      let url = `${StoreTrustbaseurl}travellers-intent/by-date-range/`;
-      const params = [];
-      if (filters.from_date) params.push(`from_date=${filters.from_date}`);
-      if (filters.to_date) params.push(`to_date=${filters.to_date}`);
-      if (params.length > 0) url += `?${params.join("&")}`;
+      const outletCode = selectedOutlet?.outlet_code || "";
+      let url = `${StoreTrustbaseurl}travellers-intent/by-date-range/?outlet_code=${encodeURIComponent(outletCode)}`;
+      if (filters.from_date) url += `&from_date=${filters.from_date}`;
+      if (filters.to_date) url += `&to_date=${filters.to_date}`;
 
       const response = await apiRequest(url, "GET");
       if (response.success) {
@@ -324,7 +327,7 @@ function TravellersIntent() {
     } catch {
       toast.error("Something went wrong while fetching saved data.");
     }
-  }, [StoreTrustbaseurl, filters.from_date, filters.to_date]);
+  }, [StoreTrustbaseurl, filters.from_date, filters.to_date, selectedOutlet?.outlet_code]);
 
   useEffect(() => {
     fetchSavedData();
@@ -373,10 +376,11 @@ function TravellersIntent() {
         is_active: true,
       }));
 
+      const outletCode = selectedOutlet?.outlet_code || "";
       const response = await apiRequest(
         `${StoreTrustbaseurl}travellers-intent/`,
         "POST",
-        { date, items: payloadItems },
+        { date, items: payloadItems, outlet_code: outletCode },
       );
       if (!response.success)
         throw new Error(response.error || "Failed to save items");
@@ -398,7 +402,8 @@ function TravellersIntent() {
         filters.from_date,
         filters.to_date,
         currentUser,
-      ); // ← pass currentUser
+        selectedOutlet?.outlet_name || "Outlet",
+      ); // ← pass currentUser & outletName
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong!");
@@ -500,12 +505,14 @@ function TravellersIntent() {
       return;
     }
     try {
+      const outletCode = selectedOutlet?.outlet_code || "";
       const response = await apiRequest(
         `${StoreTrustbaseurl}travellers-intent/update-item/`,
         "PATCH",
         {
           intent_number: editingIntentNumber,
           date: editingDate,
+          outlet_code: outletCode,
           items: [
             {
               item_id: editingItemId,
@@ -544,7 +551,7 @@ function TravellersIntent() {
   return (
     <Container>
       <Header>
-        <Title>Travellers Indent Form</Title>
+        <Title>{selectedOutlet?.outlet_name || "Outlet"} Indent Form</Title>
       </Header>
 
       {/* ── Form Row ── */}
@@ -741,7 +748,7 @@ function TravellersIntent() {
 
       {/* ── Saved Intents ── */}
       <div style={{ marginTop: "40px" }}>
-        <Subheading>Saved Traveller Indents</Subheading>
+        <Subheading>Saved {selectedOutlet?.outlet_name || "Outlet"} Indents</Subheading>
 
         <FiltersSection>
           <FiltersGrid>

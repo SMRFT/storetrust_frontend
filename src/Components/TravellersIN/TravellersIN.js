@@ -10,6 +10,7 @@ import apiRequest from "../apiRequest";
 import styled from "styled-components";
 import { AddItemMiniModal } from "../InventoryMaster/AddItems";
 import { AddVendorMiniModal } from "../InventoryMaster/AddVendor";
+import { useOutlet } from "../OutletContext";
 
 import {
   colors,
@@ -529,6 +530,17 @@ const StatusBadge = styled.span`
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 const TravellersIN = () => {
+  const { selectedOutlet } = useOutlet();
+
+  const outletNameUpper = selectedOutlet?.outlet_name
+    ? selectedOutlet.outlet_name.toUpperCase().trim()
+    : "TRAVELLERS IN";
+
+  const purchaseCategories = [
+    `${outletNameUpper} CREDIT`,
+    `${outletNameUpper} CASH`,
+  ];
+
   const location = useLocation();
   const navigate = useNavigate();
   const record = location.state?.record || null;
@@ -755,10 +767,10 @@ const TravellersIN = () => {
     const taxPaidToSupplier = round(totalCGST + totalSGST);
     const base = round(
       totalPurchaseCost +
-        (summary.taxOnFreeItems || 0) +
-        (summary.courierTransportCharge || 0) +
-        (summary.localTax || 0) -
-        totalDiscount,
+      (summary.taxOnFreeItems || 0) +
+      (summary.courierTransportCharge || 0) +
+      (summary.localTax || 0) -
+      totalDiscount,
     );
     const netInvoiceAmount = round(base + (summary.roundAmount || 0));
     setSummary((prev) => ({
@@ -1063,16 +1075,18 @@ const TravellersIN = () => {
     const safeItems = (Array.isArray(items)
       ? items
       : (() => {
-          try {
-            return JSON.parse(items);
-          } catch {
-            return [];
-          }
-        })()
+        try {
+          return JSON.parse(items);
+        } catch {
+          return [];
+        }
+      })()
     ).map(({ itemName, ...rest }) => rest);
 
+    const outletCode = selectedOutlet?.outlet_code || "";
     const payload = {
       ...formData,
+      outlet_code: outletCode,
       invoiceDate: fmt(formData.invoiceDate),
       dueDate: fmt(formData.dueDate),
       date: fmt(formData.date || new Date().toISOString().split("T")[0]),
@@ -1432,7 +1446,7 @@ const TravellersIN = () => {
         <PageHeader>
           <div>
             <PageTitle>
-              <ShoppingBag size={18} /> Travellers INN — GRN
+              <ShoppingBag size={18} /> {selectedOutlet?.outlet_name || "Outlet"} — GRN
             </PageTitle>
             <PageSubtitle>Goods Receipt Note</PageSubtitle>
           </div>
@@ -1466,12 +1480,11 @@ const TravellersIN = () => {
                     onChange={handleFormChange}
                   >
                     <option value="">Select Category</option>
-                    <option value="TRAVELLERS IN CREDIT">
-                      TRAVELLERS IN CREDIT
-                    </option>
-                    <option value="TRAVELLERS IN CASH">
-                      TRAVELLERS IN CASH
-                    </option>
+                    {purchaseCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
                   </Select>
                 </InputWrapper>
 
@@ -2336,7 +2349,7 @@ const TravellersIN = () => {
               const its = JSON.parse(h.items);
               const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
               if (m) it = m;
-            } catch {}
+            } catch { }
             if (h.matched_item) it = h.matched_item;
             return parseFloat(it?.unitPrice || 0);
           });
@@ -2344,17 +2357,17 @@ const TravellersIN = () => {
             prices.length === 0
               ? { min: 0, max: 0, avg: 0 }
               : {
-                  min: Math.min(...prices),
-                  max: Math.max(...prices),
-                  avg: prices.reduce((s, p) => s + p, 0) / prices.length,
-                };
+                min: Math.min(...prices),
+                max: Math.max(...prices),
+                avg: prices.reduce((s, p) => s + p, 0) / prices.length,
+              };
           const totalStock = historyData.reduce((t, h) => {
             let it = h;
             try {
               const its = JSON.parse(h.items);
               const m = its.find((x) => x.hsn === selectedItemForHistory.hsn);
               if (m) it = m;
-            } catch {}
+            } catch { }
             if (h.matched_item) it = h.matched_item;
             return t + parseInt(it?.totalstock || 0);
           }, 0);
@@ -2444,7 +2457,7 @@ const TravellersIN = () => {
                               (x) => x.hsn === selectedItemForHistory.hsn,
                             );
                             if (m) it = m;
-                          } catch {}
+                          } catch { }
                           if (hi.matched_item) it = hi.matched_item;
                           const unitPrice = parseFloat(it?.unitPrice || 0);
                           const isHigh =
@@ -2628,7 +2641,7 @@ const TravellersIN = () => {
                       marginBottom: 6,
                     }}
                   >
-                    GOODS RECEIPT NOTE — TRAVELLERS INN
+                    GOODS RECEIPT NOTE — {(selectedOutlet?.outlet_name || "OUTLET").toUpperCase()}
                   </div>
                   {grn_number && (
                     <div

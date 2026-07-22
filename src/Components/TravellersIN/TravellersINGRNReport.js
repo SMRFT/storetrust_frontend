@@ -94,6 +94,7 @@ import {
 import apiRequest from "../apiRequest";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { useOutlet } from "../OutletContext";
 
 // ─────────────────────────────────────────────
 // Portal — renders children directly into <body>
@@ -625,10 +626,10 @@ const PaymentModal = ({
                     value={paymentDetails.payment_details}
                     onChange={(e) => onChange("payment_details", e.target.value)}
                     placeholder={`Enter ${paymentDetails.payment_method === "UPI"
-                        ? "UPI Transaction ID"
-                        : paymentDetails.payment_method === "Cheque"
-                          ? "Cheque Number"
-                          : "Transaction Details"
+                      ? "UPI Transaction ID"
+                      : paymentDetails.payment_method === "Cheque"
+                        ? "Cheque Number"
+                        : "Transaction Details"
                       }`}
                     required
                   />
@@ -662,11 +663,12 @@ const PaymentModal = ({
 // Main GRNReport component
 // ─────────────────────────────────────────────
 const GRNReport = () => {
+  const today = new Date().toISOString().split("T")[0];
   const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
-    from_date: new Date().toISOString().split("T")[0],
-    to_date: new Date().toISOString().split("T")[0],
+    from_date: today,
+    to_date: today,
     search: "",
     category: "ALL",
   });
@@ -690,17 +692,40 @@ const GRNReport = () => {
   const [isPaymentDirty, setIsPaymentDirty] = useState(false);
 
   const navigate = useNavigate();
+  const { selectedOutlet } = useOutlet();
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
 
-  const getCategoryTitle = () => {
-    switch (filters.category) {
-      case "TRAVELLERS IN CASH":
-        return "Travellers IN Cash GRN Report";
-      case "TRAVELLERS IN CREDIT":
-        return "Travellers IN Credit GRN Report";
-      default:
-        return "Travellers IN GRN Report";
+  const outletNameUpper = selectedOutlet?.outlet_name
+    ? selectedOutlet.outlet_name.toUpperCase().trim()
+    : "TRAVELLERS IN";
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set([
+      `${outletNameUpper} CASH`,
+      `${outletNameUpper} CREDIT`,
+    ]);
+    if (Array.isArray(allData)) {
+      allData.forEach((item) => {
+        if (item.purchase_category) {
+          set.add(item.purchase_category.trim().toUpperCase());
+        }
+      });
     }
+    return Array.from(set);
+  }, [allData, outletNameUpper]);
+
+  useEffect(() => {
+    setFilters((prev) => ({ ...prev, category: "ALL" }));
+  }, [selectedOutlet?.outlet_code]);
+
+  const getCategoryTitle = () => {
+    const outletName = selectedOutlet?.outlet_name || "Outlet";
+    if (filters.category.includes("CASH")) {
+      return `${outletName} Cash GRN Report`;
+    } else if (filters.category.includes("CREDIT")) {
+      return `${outletName} Credit GRN Report`;
+    }
+    return `${outletName} GRN Report`;
   };
 
   const formatPaymentHistory = (paymentStatus) => {
@@ -716,13 +741,13 @@ const GRNReport = () => {
     return [...valid, ...Array(3 - valid.length).fill("N/A")];
   };
 
-  // ── Fix 1: Remove is_active frontend filter in fetchAllData ──────────
   const fetchAllData = useCallback(
     async (page = 1, size = 100) => {
       setLoading(true);
       try {
+        const outletCode = selectedOutlet?.outlet_code || "";
         const response = await apiRequest(
-          `${StoreTrustbaseurl}travellers-in/list/?from_date=${filters.from_date}&to_date=${filters.to_date}&page=${page}&page_size=${size}`,
+          `${StoreTrustbaseurl}travellers-in/list/?from_date=${filters.from_date}&to_date=${filters.to_date}&outlet_code=${encodeURIComponent(outletCode)}&page=${page}&page_size=${size}`,
           "GET",
         );
         if (!response.success)
@@ -750,9 +775,7 @@ const GRNReport = () => {
         setLoading(false);
       }
     },
-    // ✅ Fix 2: Add filters.from_date and filters.to_date as dependencies
-    // so fetchAllData re-runs when dates change
-    [StoreTrustbaseurl, filters.from_date, filters.to_date],
+    [StoreTrustbaseurl, filters.from_date, filters.to_date, selectedOutlet?.outlet_code],
   );
 
   const fetchPreviousPurchases = async (item) => {
@@ -814,9 +837,10 @@ const GRNReport = () => {
   const handleFilterChange = (key, value) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
   const clearFilters = () => {
+    const todayStr = new Date().toISOString().split("T")[0];
     setFilters({
-      from_date: new Date().toISOString().split("T")[0],
-      to_date: new Date().toISOString().split("T")[0],
+      from_date: todayStr,
+      to_date: todayStr,
       search: "",
       category: "ALL",
     });
@@ -1359,10 +1383,11 @@ const GRNReport = () => {
                 onChange={(e) => handleFilterChange("category", e.target.value)}
               >
                 <option value="ALL">All Categories</option>
-                <option value="TRAVELLERS IN CASH">TRAVELLERS IN CASH</option>
-                <option value="TRAVELLERS IN CREDIT">
-                  TRAVELLERS IN CREDIT
-                </option>
+                {categoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </PaymentSelect>
             </InputWrapper>
           </FilterGroup>

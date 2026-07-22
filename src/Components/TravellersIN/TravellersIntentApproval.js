@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import apiRequest from "../apiRequest";
 import { toast } from "react-toastify";
+import { useOutlet } from "../OutletContext";
 import * as XLSX from "xlsx";
 import {
   ModalOverlay,
@@ -138,9 +139,9 @@ const normalizeStatus = (status) => {
   return map[status] || status || "Pending";
 };
 
-const getTotalStock = async (item_id, hsn) => {
+const getTotalStock = async (item_id, hsn, outletCode = "") => {
   const StoreTrustbaseurl = process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
-  const url = `${StoreTrustbaseurl}travellers-stock/?item_id=${encodeURIComponent(item_id)}&hsn=${encodeURIComponent(hsn || "")}`;
+  const url = `${StoreTrustbaseurl}travellers-stock/?item_id=${encodeURIComponent(item_id)}&hsn=${encodeURIComponent(hsn || "")}&outlet_code=${encodeURIComponent(outletCode)}`;
   try {
     const response = await apiRequest(url, "GET");
     if (!response.success) throw new Error(response.error);
@@ -255,6 +256,7 @@ function InputModal({
 // ---------- Main Component ----------
 function TravellersIntentApproval() {
   const today = new Date().toISOString().split("T")[0];
+  const { selectedOutlet } = useOutlet();
   const [intents, setIntents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -279,10 +281,10 @@ function TravellersIntentApproval() {
     availableStock: 0,
   });
 
-  // Re-fetch whenever date filters change
+  // Re-fetch whenever date filters or selected outlet changes
   useEffect(() => {
     fetchData();
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, selectedOutlet?.outlet_code]);
 
   useEffect(() => {
     setSelectedDispatchItems([]);
@@ -294,8 +296,10 @@ function TravellersIntentApproval() {
     try {
       const StoreTrustbaseurl =
         process.env.REACT_APP_BACKEND_STORETRUST_BASE_URL;
+      const outletCode = selectedOutlet?.outlet_code || "";
 
       const params = new URLSearchParams();
+      if (outletCode) params.append("outlet_code", outletCode);
       if (fromDate) params.append("from_date", fromDate);
       if (toDate) params.append("to_date", toDate);
 
@@ -509,15 +513,24 @@ function TravellersIntentApproval() {
     const requestedQuantity = Number(item.quantity || 0);
 
     const hsn = item.hsn || "";
-    const freshStock = await getTotalStock(item.item_id, hsn);
+    const freshStock = await getTotalStock(item.item_id, hsn, selectedOutlet?.outlet_code);
+    const normStatus = normalizeStatus(item.status);
+    const prevApproved =
+      normStatus === "Approved"
+        ? requestedQuantity
+        : normStatus === "Partially Approved"
+        ? Number(item.approved || 0)
+        : 0;
+
+    const effectiveAvailableStock = freshStock + prevApproved;
 
     if (newStatus === "Partially Approve") {
       setModalData({
         intentId,
         itemIndex,
-        maxQuantity: Math.min(requestedQuantity, freshStock),
+        maxQuantity: Math.min(requestedQuantity, effectiveAvailableStock),
         requestedQuantity,
-        availableStock: freshStock,
+        availableStock: effectiveAvailableStock,
       });
       setModalVisible(true);
       setHasChanges(true);
@@ -528,8 +541,8 @@ function TravellersIntentApproval() {
     const newStatusNorm = normalizeStatus(newStatus);
 
     if (newStatusNorm === "Approved") {
-      if (freshStock < requestedQuantity) {
-        toast.error(`Cannot approve. Available stock: ${freshStock}`);
+      if (effectiveAvailableStock < requestedQuantity) {
+        toast.error(`Cannot approve. Available stock: ${effectiveAvailableStock}`);
         return;
       }
       approvedQuantity = requestedQuantity;
@@ -569,9 +582,16 @@ function TravellersIntentApproval() {
         approvedQty = Number(updatedItem.approved || 0);
       }
 
+      const intentRecord = intents.find((i) => i.intent_number === intentId);
+      const outletCode =
+        selectedOutlet?.outlet_code ||
+        intentRecord?.outlet_code ||
+        "";
+
       const data = {
         intent_number: intentId,
         date: intentDate,
+        outlet_code: outletCode,
         items: [
           {
             item_id: updatedItem.item_id,
@@ -710,9 +730,15 @@ function TravellersIntentApproval() {
         };
       });
 
+      const outletCode =
+        selectedOutlet?.outlet_code ||
+        intent?.outlet_code ||
+        "";
+
       const data = {
         intent_number: expandedIntent,
         date: intent.date,
+        outlet_code: outletCode,
         items: itemsToUpdate,
       };
 
@@ -845,7 +871,7 @@ function TravellersIntentApproval() {
       }
       .center { text-align: center; }
     </style>
-    <h2>Travellers Inn Indent Report</h2>
+    <h2>${selectedOutlet?.outlet_name || "Outlet"} Indent Report</h2>
   `;
 
     intentsWithStock.forEach((intent) => {
@@ -890,8 +916,8 @@ function TravellersIntentApproval() {
                 <th>Item Name</th>
                 <th class="center">Requested Qty</th>
                 <th class="center">Approved Qty</th>
-                <th>Approved By</th>
-                <th>Dispatch Status</th>
+                <th>Approved/Rejected By</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -905,7 +931,7 @@ function TravellersIntentApproval() {
                     <td class="center">${item.quantity}</td>
                     <td class="center">${item.status === "Reject" || item.status === "Rejected" ? 0 : (item.approved ?? item.quantity)}</td>
                     <td>${item.approved_by || "—"}</td>
-                    <td>${item.is_dispatch ? "Dispatched" : "Not Dispatched"}</td>
+                    <td>${item.status || "Pending"}</td>
                   </tr>`
             )
             .join("")
@@ -921,7 +947,7 @@ function TravellersIntentApproval() {
     win.document.write(`
     <html>
       <head>
-        <title>Traveller Indent Report (${fromLabel} to ${toLabel})</title>
+        <title>${selectedOutlet?.outlet_name || "Outlet"} Indent Report (${fromLabel} to ${toLabel})</title>
       </head>
       <body>
         ${printContent}
@@ -942,7 +968,7 @@ function TravellersIntentApproval() {
 
     // 1. Report Title Row (Once at the top)
     exportData.push({
-      Col1: "Travellers Inn Indent Report",
+      Col1: `${selectedOutlet?.outlet_name || "Outlet"} Indent Report`,
     });
     exportData.push({});
 
@@ -983,8 +1009,8 @@ function TravellersIntentApproval() {
         Col2: "Item Name",
         Col3: "Requested Qty",
         Col4: "Approved Qty",
-        Col5: "Approved By",
-        Col6: "Dispatch Status",
+        Col5: "Approved/Rejected By",
+        Col6: "Status",
       });
 
       // 7. Items Data Rows
@@ -999,7 +1025,7 @@ function TravellersIntentApproval() {
                 ? 0
                 : (item.approved ?? item.quantity),
             Col5: item.approved_by || "—",
-            Col6: item.is_dispatch ? "Dispatched" : "Not Dispatched",
+            Col6: item.status || "Pending",
           });
         });
       } else {
@@ -1074,7 +1100,7 @@ function TravellersIntentApproval() {
   return (
     <Container>
       <Header>
-        <Title>Traveller Indent Report</Title>
+        <Title>{selectedOutlet?.outlet_name || "Outlet"} Indent Approval</Title>
       </Header>
       <TopRightButtons>
         <Button bgColor="#662549" bgHover="#662549" onClick={handlePrintTable}>
@@ -1387,14 +1413,16 @@ function TravellersIntentApproval() {
                                     e.target.value,
                                   )
                                 }
-                                disabled={normStatus === "Rejected" || item.is_dispatch === true}
+                                disabled={item.is_dispatch === true}
                               >
                                 <option value="Pending">Pending</option>
                                 <option
                                   value="Partially Approve"
                                   disabled={
-                                    currentStock <= 0 ||
-                                    Number(item.quantity) <= 1
+                                    Number(item.quantity) <= 1 ||
+                                    (normStatus !== "Approved" &&
+                                     normStatus !== "Partially Approved" &&
+                                     currentStock <= 0)
                                   }
                                 >
                                   Partially Approve
@@ -1402,8 +1430,8 @@ function TravellersIntentApproval() {
                                 <option
                                   value="Approve"
                                   disabled={
-                                    currentStock <= 0 ||
-                                    requestedQty > currentStock
+                                    normStatus !== "Approved" &&
+                                    (currentStock <= 0 || requestedQty > currentStock)
                                   }
                                 >
                                   Approve

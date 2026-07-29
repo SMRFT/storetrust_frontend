@@ -636,12 +636,12 @@ const TravellersIN = () => {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // ── Helper: resolve item name from availableItems ──────────────────────────
+  // ── Helper: resolve item name ──────────────────────────
   const getItemName = (item) => {
+    if (item?.itemName) return item.itemName;
+    if (item?.name) return item.name;
     const matched = availableItems.find(
-      (i) =>
-        String(i.item_id) === String(item.item_id) ||
-        String(i.hsn) === String(item.hsn),
+      (i) => String(i.item_id) === String(item.item_id),
     );
     return matched?.itemName || "—";
   };
@@ -829,9 +829,11 @@ const TravellersIN = () => {
     if (item) {
       setEditingItem(item._rowId); // ← use _rowId
       const matchedName =
+        item.itemName ||
+        item.name ||
         availableItems.find((i) => String(i.item_id) === String(item.item_id))
           ?.itemName || "";
-      setModalForm({ ...EMPTY_MODAL, ...item, name: matchedName });
+      setModalForm({ ...EMPTY_MODAL, ...item, name: matchedName, itemName: matchedName });
     } else {
       setEditingItem(null);
       setModalForm(EMPTY_MODAL);
@@ -883,7 +885,9 @@ const TravellersIN = () => {
       setModalForm((prev) => ({
         ...prev,
         name: value,
-        hsn: sel ? sel.hsn : "",
+        itemName: value,
+        item_id: sel ? String(sel.item_id) : prev.item_id,
+        hsn: sel ? sel.hsn : prev.hsn,
       }));
       return;
     }
@@ -956,16 +960,20 @@ const TravellersIN = () => {
 
   const buildItem = (form, existingItemId, existingHsn) => {
     const { id, name, itemName, ...rest } = form;
+    const finalName = name || itemName || "";
 
     // Only look up from master if this is a NEW item (no existingItemId)
     if (!existingItemId) {
       const matched = availableItems.find(
-        (i) => i.itemName === (name || itemName),
+        (i) => i.itemName === finalName,
       );
       return {
         ...rest,
+        itemName: finalName,
         item_id: matched?.item_id
           ? String(matched.item_id)
+          : form.item_id
+          ? String(form.item_id)
           : String(Date.now()),
         hsn: matched?.hsn || form.hsn || "",
       };
@@ -977,6 +985,7 @@ const TravellersIN = () => {
 
     return {
       ...rest,
+      itemName: finalName,
       purchaseDiscountPercent: normalize(rest.purchaseDiscountPercent),
       discountedAmt: normalize(rest.discountedAmt),
       item_id: existingItemId,
@@ -1072,7 +1081,7 @@ const TravellersIN = () => {
         return "";
       }
     };
-    const safeItems = (Array.isArray(items)
+    const safeItems = Array.isArray(items)
       ? items
       : (() => {
         try {
@@ -1080,8 +1089,7 @@ const TravellersIN = () => {
         } catch {
           return [];
         }
-      })()
-    ).map(({ itemName, ...rest }) => rest);
+      })();
 
     const outletCode = selectedOutlet?.outlet_code || "";
     const payload = {
@@ -1384,6 +1392,8 @@ const TravellersIN = () => {
       setModalForm((prev) => ({
         ...prev,
         name: item.itemName,
+        itemName: item.itemName,
+        item_id: String(item.item_id),
         hsn: item.hsn || "",
       }));
     };
